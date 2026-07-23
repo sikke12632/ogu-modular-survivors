@@ -10,7 +10,7 @@ export default defineConfig({
     reuseExistingServer: true
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
-    { name: 'mobile', use: { ...devices['Pixel 7'], channel: 'chrome', isMobile: true, hasTouch: true } }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile', use: { ...devices['Pixel 7'], isMobile: true, hasTouch: true } }
   ]
 });

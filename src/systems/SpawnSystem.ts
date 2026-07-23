@@ -23,6 +23,17 @@ export class SpawnSystem {
   private spawnAccumulator = 0;
   private lastWaveId = 0;
 
+  reset(): void {
+    this.director.reset();
+    this.budget.reset();
+    this.spawnAccumulator = 0;
+    this.lastWaveId = 0;
+  }
+
+  restoreBossProgress(defeatedBosses: readonly string[], activeBossId?: BossId): void {
+    this.director.restore({ defeatedBosses, activeBossId });
+  }
+
   update(context: SpawnUpdateContext): WaveDefinition | undefined {
     const wave = this.director.getWave(context.elapsedMs);
     this.budget.update(context.deltaMs, wave.budgetPerSec, { maxActive: context.maxEnemies, qualityScale: context.qualityScale });

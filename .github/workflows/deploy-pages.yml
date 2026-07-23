@@ -46,6 +46,12 @@ jobs:
       - name: Build PWA
         run: pnpm build
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: pnpm test:e2e
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

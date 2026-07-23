@@ -7,6 +7,16 @@ export class PerformanceSystem {
   private lowSamples = 0;
   private highSamples = 0;
 
+  reset(): void {
+    this.quality = 'high';
+    this.maxEnemies = 230;
+    this.effectsScale = 1;
+    this.sampleMs = 0;
+    this.frameCount = 0;
+    this.lowSamples = 0;
+    this.highSamples = 0;
+  }
+
   update(deltaMs: number): void {
     this.sampleMs += deltaMs;
     this.frameCount += 1;

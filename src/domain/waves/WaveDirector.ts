@@ -1,5 +1,10 @@
 import { WAVES, type WaveDefinition } from '../../data/waves';
 
+export interface WaveDirectorRestoreState {
+  defeatedBosses: readonly string[];
+  activeBossId?: string;
+}
+
 export class WaveDirector {
   private readonly spawnedBosses = new Set<string>();
 
@@ -18,6 +23,16 @@ export class WaveDirector {
 
   restoreBosses(ids: readonly string[]): void {
     for (const id of ids) this.spawnedBosses.add(id);
+  }
+
+  restore(state: WaveDirectorRestoreState): void {
+    this.reset();
+    this.restoreBosses(state.defeatedBosses);
+    if (state.activeBossId) this.spawnedBosses.add(state.activeBossId);
+  }
+
+  reset(): void {
+    this.spawnedBosses.clear();
   }
 
   get progress(): number {
