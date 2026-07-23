@@ -8,6 +8,7 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
   maxHp = 1;
   attackCooldownMs = 0;
   specialCooldownMs = 0;
+  radialCooldownMs = 0;
   state: 'chase' | 'telegraph' | 'dash' | 'recover' = 'chase';
   stateTimerMs = 0;
   phase = 1;
@@ -28,6 +29,7 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = this.hp;
     this.attackCooldownMs = 600 + Math.random() * 700;
     this.specialCooldownMs = 1_800 + Math.random() * 1_200;
+    this.radialCooldownMs = 1_000 + Math.random() * 700;
     this.state = 'chase';
     this.stateTimerMs = 0;
     this.phase = 1;

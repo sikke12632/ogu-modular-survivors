@@ -7,8 +7,10 @@ import { getCharacter, type CharacterId } from '../data/characters';
 import { getEnemy, type BossId, type EnemyDefinition } from '../data/enemies';
 import { getWeapon } from '../data/weapons';
 import { resolveDamage } from '../domain/combat/DamageResolver';
+import { tickEnemyCooldowns, tryConsumeEnemyCooldown } from '../domain/combat/EnemyCooldowns';
 import { MissionService } from '../domain/missions/MissionService';
-import { applyUpgradeChoice, draftUpgrades, findEvolutionCandidate, type UpgradeChoice } from '../domain/progression/UpgradeDraft';
+import { applyTreasureReward, decideChestSpawn } from '../domain/progression/TreasureReward';
+import { applyUpgradeChoice, draftUpgrades, type UpgradeChoice } from '../domain/progression/UpgradeDraft';
 import { applyExperience, xpRequiredForLevel } from '../domain/progression/Experience';
 import { createRunSnapshot, type RunSnapshot } from '../domain/run/RunSerializer';
 import type { RunState } from '../domain/run/RunState';
@@ -65,7 +67,6 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private assembleFireMs = 0;
   private playerInvulnerableUntil = 0;
   private ended = false;
-  private pendingTreasureBoss = false;
   private zones: DamageZone[] = [];
   private meteors: MeteorEffect[] = [];
   private beams: BeamEffect[] = [];
@@ -96,7 +97,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setZoom(1);
     this.scene.launch('UIScene', { gameScene: this });
-    this.spawnSystem.director.restoreBosses(this.state.bossesDefeated);
+    this.spawnSystem.restoreBossProgress(this.state.bossesDefeated, this.state.activeBoss?.id);
     if (this.state.activeBoss) {
       const restored = this.state.activeBoss;
       this.spawnBoss(restored.id, 1, 1, restored);
@@ -217,27 +218,9 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     void this.saveRun();
   }
 
-  claimTreasure(): { title: string; description: string; evolved: boolean } {
-    const evolution = findEvolutionCandidate(this.state.weapons, this.state.passives);
-    let result: { title: string; description: string; evolved: boolean };
-    if (evolution) {
-      evolution.evolved = true;
-      const definition = getWeapon(evolution.id);
-      result = { title: `${definition.evolvedName} 진화!`, description: `${definition.name}의 공격 패턴이 크게 확장됩니다.`, evolved: true };
-    } else {
-      const upgradable = this.state.weapons.filter((weapon) => weapon.level < getWeapon(weapon.id).maxLevel);
-      const weapon = upgradable[Math.floor(this.random() * upgradable.length)];
-      if (weapon) {
-        weapon.level += 1;
-        result = { title: `${getWeapon(weapon.id).name} 강화`, description: `무기 레벨이 ${weapon.level}이 되었습니다.`, evolved: false };
-      } else {
-        const heal = this.state.stats.maxHp * 0.45;
-        this.state.stats.hp = Math.min(this.state.stats.maxHp, this.state.stats.hp + heal);
-        result = { title: '완전 수리', description: `체력을 ${Math.round(heal)} 회복했습니다.`, evolved: false };
-      }
-    }
-    this.pendingTreasureBoss = false;
-    this.state.score += 450;
+  claimTreasure(bossChest: boolean): { title: string; description: string; evolved: boolean } {
+    const result = applyTreasureReward(this.state, bossChest, this.random);
+    this.state.score += bossChest ? 900 : 450;
     this.syncPlayerStats();
     sfx.play('treasure', 0.1);
     void this.saveRun();
@@ -312,6 +295,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private resetRuntimeCollections(): void {
+    this.weaponSystem.reset();
+    this.spawnSystem.reset();
+    this.comboSystem.reset();
+    this.performanceSystem.reset();
     this.ended = false;
     this.nowMs = 0;
     this.enemyUid = 1;
@@ -321,6 +308,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.chestTimerMs = 38_000;
     this.assembleRemainingMs = 0;
     this.assembleFireMs = 0;
+    this.playerInvulnerableUntil = 0;
     this.zones = [];
     this.meteors = [];
     this.beams = [];
@@ -421,8 +409,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       if (!enemy.active || !enemy.definition) continue;
       const distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, playerX, playerY);
       if (distance > 1_050 && (enemy.uid + Math.floor(this.nowMs / 100)) % 3 !== 0) continue;
-      enemy.attackCooldownMs -= deltaMs;
-      enemy.specialCooldownMs -= deltaMs;
+      tickEnemyCooldowns(enemy, deltaMs);
       const slow = this.nowMs < enemy.slowUntil ? 0.52 : 1;
       const definition = enemy.definition;
       if (definition.boss) this.updateBoss(enemy, deltaMs, distance, slow);
@@ -448,8 +435,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       } else {
         this.steerToward(enemy, playerX, playerY, definition.speed * slow);
       }
-      if (definition.id === 'elite_barrage' && enemy.attackCooldownMs <= 0) {
-        enemy.attackCooldownMs = 2_100;
+      if (definition.id === 'elite_barrage' && tryConsumeEnemyCooldown(enemy, 'specialCooldownMs', 2_100)) {
         this.fireRadial(enemy.x, enemy.y, 10, definition.damage * 0.75, 165);
       }
       if (definition.id === 'elite_leech' && enemy.hp < enemy.maxHp && enemy.specialCooldownMs <= 0) {
@@ -473,8 +459,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       }
     } else if (definition.id === 'boss_caster') {
       this.updateShooter(enemy, distance, slow);
-      if (enemy.attackCooldownMs <= 0) {
-        enemy.attackCooldownMs = 2_300 - enemy.phase * 260;
+      if (tryConsumeEnemyCooldown(enemy, 'radialCooldownMs', 2_300 - enemy.phase * 260)) {
         this.fireRadial(enemy.x, enemy.y, 10 + enemy.phase * 4, definition.damage * 0.75, 175 + enemy.phase * 20);
       }
       if (enemy.specialCooldownMs <= 0) {
@@ -509,8 +494,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     if (distance < 215) this.steerToward(enemy, enemy.x + (enemy.x - this.player.x), enemy.y + (enemy.y - this.player.y), definition.speed * slow);
     else if (distance > 340) this.steerToward(enemy, this.player.x, this.player.y, definition.speed * slow);
     else enemy.setVelocity(0, 0);
-    if (enemy.attackCooldownMs <= 0) {
-      enemy.attackCooldownMs = definition.elite ? 1_500 : definition.boss ? 1_200 : 2_400;
+    if (tryConsumeEnemyCooldown(enemy, 'attackCooldownMs', definition.elite ? 1_500 : definition.boss ? 1_200 : 2_400)) {
       this.fireEnemyProjectile(enemy.x, enemy.y, this.player.x, this.player.y, definition.damage, definition.boss ? 210 : 150, definition.color);
     }
   }
@@ -715,12 +699,23 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private spawnTreasure(bossChest: boolean, x?: number, y?: number): void {
-    if ((this.pickups.getChildren() as PickupSprite[]).some((pickup) => pickup.active && pickup.pickupType === 'chest')) return;
+    const activeChests = (this.pickups.getChildren() as PickupSprite[])
+      .filter((pickup) => pickup.active && pickup.pickupType === 'chest');
+    const decision = decideChestSpawn(activeChests.map((pickup) => pickup.bossChest), bossChest);
+    if (decision === 'skip') return;
+    if (decision === 'replace-normal') {
+      for (const chest of activeChests) chest.retire();
+    }
     const position = x === undefined ? this.findFarPosition() : { x, y: y! };
-    const chest = this.pickups.get(position.x, position.y, 'chest') as PickupSprite | null;
+    let chest = this.pickups.get(position.x, position.y, 'chest') as PickupSprite | null;
+    if (!chest && bossChest) {
+      const expendableXp = (this.pickups.getChildren() as PickupSprite[])
+        .find((pickup) => pickup.active && pickup.pickupType === 'xp');
+      expendableXp?.retire();
+      chest = this.pickups.get(position.x, position.y, 'chest') as PickupSprite | null;
+    }
     if (!chest) return;
     chest.activate(position.x, position.y, 'chest', 1, bossChest).setDepth(7);
-    this.pendingTreasureBoss = bossChest;
     this.showMessage(bossChest ? '보스 보물상자!' : '멀리서 보물 신호가 감지됩니다', '#ffdc64');
   }
 
@@ -750,9 +745,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private collectPickup(pickup: PickupSprite): void {
     if (!pickup.active) return;
     if (pickup.pickupType === 'chest') {
+      const bossChest = pickup.bossChest;
       pickup.retire();
       this.scene.pause();
-      this.scene.launch('TreasureScene', { gameScene: this, bossChest: pickup.bossChest || this.pendingTreasureBoss });
+      this.scene.launch('TreasureScene', { gameScene: this, bossChest });
       return;
     }
     const result = applyExperience(this.state.level, this.state.xp, pickup.value);

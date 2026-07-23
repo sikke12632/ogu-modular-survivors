@@ -16,6 +16,10 @@ export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
 
   create(): void {
+    this.cards.length = 0;
+    this.continueButton = undefined;
+    this.snapshot = undefined;
+    this.profileText = undefined;
     this.cameras.main.setBackgroundColor('#040b18');
     this.drawBackdrop();
     this.add.text(64, 46, 'OGU // MODULAR ARENA', { fontFamily: 'system-ui', fontSize: '18px', color: '#74efff', letterSpacing: 4 }).setAlpha(0.8);
@@ -50,10 +54,12 @@ export class MainMenuScene extends Phaser.Scene {
     this.input.once('pointerdown', () => sfx.unlock());
     void this.refreshLocalData();
     window.addEventListener('ogu:offline-ready', this.onOfflineReady, { once: true });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
   }
 
   private async refreshLocalData(): Promise<void> {
     const [snapshot, profile] = await Promise.all([saveAdapter.loadRun(), platformGateway.loadProfile()]);
+    if (!this.sys.isActive()) return;
     this.snapshot = snapshot;
     if (this.continueButton) {
       const label = this.continueButton.getByName('label') as Phaser.GameObjects.Text;
@@ -125,6 +131,13 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   private onOfflineReady = (): void => { this.showToast('오프라인 플레이 준비 완료'); };
+
+  private onShutdown(): void {
+    window.removeEventListener('ogu:offline-ready', this.onOfflineReady);
+    this.cards.length = 0;
+    this.continueButton = undefined;
+    this.profileText = undefined;
+  }
 
   private formatTime(ms: number): string {
     const total = Math.floor(ms / 1000);

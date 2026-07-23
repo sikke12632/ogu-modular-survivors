@@ -25,6 +25,11 @@ export interface CombatHost {
 }
 
 export class WeaponSystem {
+  reset(): void {
+    // Runtime cooldowns belong to RunState; this method keeps the lifecycle
+    // contract explicit if the system later gains internal caches.
+  }
+
   update(state: RunState, deltaMs: number, host: CombatHost): void {
     for (const owned of state.weapons) {
       owned.cooldownMs -= deltaMs;

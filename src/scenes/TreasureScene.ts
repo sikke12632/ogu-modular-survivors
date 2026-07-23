@@ -20,7 +20,7 @@ export class TreasureScene extends Phaser.Scene {
       rays.lineBetween(640 + Math.cos(angle) * 70, 300 + Math.sin(angle) * 70, 640 + Math.cos(angle) * 330, 300 + Math.sin(angle) * 330);
     }
     this.add.image(640, 280, 'chest').setScale(2.5);
-    const reward = this.gameScene.claimTreasure();
+    const reward = this.gameScene.claimTreasure(this.bossChest);
     this.add.text(640, 96, this.bossChest ? 'BOSS TREASURE' : 'TREASURE SIGNAL', { fontFamily: 'system-ui', fontSize: '20px', fontStyle: 'bold', color: '#ffe06d', letterSpacing: 4 }).setOrigin(0.5);
     this.add.text(640, 420, reward.title, { fontFamily: 'system-ui', fontSize: '40px', fontStyle: 'bold', color: reward.evolved ? '#ffe06d' : '#ffffff' }).setOrigin(0.5);
     this.add.text(640, 474, reward.description, { fontFamily: 'system-ui', fontSize: '18px', color: '#bed0e9', align: 'center', wordWrap: { width: 700 } }).setOrigin(0.5);
