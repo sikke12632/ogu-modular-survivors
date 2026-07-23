@@ -42,3 +42,7 @@ RunResult → ScoreGateway → LocalPlatformGateway
 4. 순수 규칙은 단위 테스트를 먼저 추가합니다.
 
 Firebase나 다른 서버를 붙일 때는 `LocalPlatformGateway`를 대체하는 구현을 추가하고 게임 코어에는 SDK를 import하지 않습니다.
+
+## 검증과 배포
+
+`main` 대상 PR은 단위 테스트, TypeScript/PWA 빌드와 Playwright 전체 검증을 통과해야 합니다. Playwright는 짧은 장면 회귀 외에 가속된 전체 웨이브, 실제 터치 입력, 서비스 워커 오프라인 재실행을 확인합니다. GitHub Pages 배포는 공개 저장소에서만 검증 완료된 `dist` 아티팩트를 사용합니다.
