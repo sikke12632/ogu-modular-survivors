@@ -23,6 +23,25 @@ export interface RunStats {
   evasion: number;
 }
 
+export interface ActiveBossState {
+  id: BossId;
+  hp: number;
+  maxHp: number;
+  phase: number;
+  x: number;
+  y: number;
+  damage: number;
+  attackCooldownMs: number;
+  specialCooldownMs: number;
+  radialCooldownMs: number;
+  behavior: 'chase' | 'telegraph' | 'dash' | 'recover';
+  behaviorTimerMs: number;
+  dashX: number;
+  dashY: number;
+  slowRemainingMs: number;
+  spawnedAdds: number;
+}
+
 export interface RunState {
   seed: number;
   characterId: CharacterId;
@@ -38,5 +57,5 @@ export interface RunState {
   passives: Partial<Record<PassiveId, number>>;
   stats: RunStats;
   bossesDefeated: string[];
-  activeBoss?: { id: BossId; hp: number; maxHp: number; phase: number };
+  activeBoss?: ActiveBossState;
 }

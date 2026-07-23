@@ -1,14 +1,22 @@
 export type RandomFn = () => number;
 
-export function mulberry32(seed: number): RandomFn {
-  let value = seed >>> 0;
-  return () => {
+export interface StatefulRandomFn extends RandomFn {
+  getState(): number;
+  setState(state: number): void;
+}
+
+export function mulberry32(seed: number, restoredState?: number): StatefulRandomFn {
+  let value = (restoredState ?? seed) >>> 0;
+  const random = (() => {
     value += 0x6d2b79f5;
     let next = value;
     next = Math.imul(next ^ (next >>> 15), next | 1);
     next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
     return ((next ^ (next >>> 14)) >>> 0) / 4_294_967_296;
-  };
+  }) as StatefulRandomFn;
+  random.getState = () => value >>> 0;
+  random.setState = (state: number) => { value = state >>> 0; };
+  return random;
 }
 
 export function weightedPick<T extends string>(weights: Record<T, number>, random: RandomFn): T {

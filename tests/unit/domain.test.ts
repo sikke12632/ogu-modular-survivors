@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SAVE_SCHEMA_VERSION } from '../../src/app/version';
 import { SpatialHashGrid } from '../../src/core/math/SpatialHashGrid';
 import { mulberry32 } from '../../src/core/math/random';
 import { resolveDamage } from '../../src/domain/combat/DamageResolver';
@@ -6,13 +7,15 @@ import { tickEnemyCooldowns, tryConsumeEnemyCooldown } from '../../src/domain/co
 import { applyExperience, xpRequiredForLevel } from '../../src/domain/progression/Experience';
 import { applyTreasureReward, decideChestSpawn } from '../../src/domain/progression/TreasureReward';
 import { applyUpgradeChoice, draftUpgrades, findEvolutionCandidate } from '../../src/domain/progression/UpgradeDraft';
-import { migrateRunSnapshot } from '../../src/domain/run/RunSerializer';
+import { createRunSnapshot, migrateRunSnapshot, type RunSnapshot } from '../../src/domain/run/RunSerializer';
 import type { RunState } from '../../src/domain/run/RunState';
 import { SpawnBudget } from '../../src/domain/waves/SpawnBudget';
 import { WaveDirector } from '../../src/domain/waves/WaveDirector';
 import { ComboSystem } from '../../src/systems/ComboSystem';
 import { PerformanceSystem } from '../../src/systems/PerformanceSystem';
 import { SpawnSystem } from '../../src/systems/SpawnSystem';
+import { MissionService } from '../../src/domain/missions/MissionService';
+import { IndexedDbSaveAdapter, type AsyncKeyValueStore, type FallbackStorage } from '../../src/persistence/IndexedDbSaveAdapter';
 
 function makeState(): RunState {
   return {
@@ -141,9 +144,116 @@ describe('waves, budgets, saves, and spatial lookup', () => {
     expect(migrateRunSnapshot({ schemaVersion: 999, state: makeState(), runId: 'x' })).toBeUndefined();
   });
 
+  it('migrates a v1 run into a validated v2 checkpoint', () => {
+    const state = makeState();
+    state.activeBoss = {
+      id: 'boss_guardian',
+      hp: 3_200,
+      maxHp: 6_400,
+      phase: 2
+    } as RunState['activeBoss'];
+    const migrated = migrateRunSnapshot({
+      schemaVersion: 1,
+      gameVersion: '0.1.0',
+      savedAt: 100,
+      runId: 'legacy',
+      state
+    });
+    expect(migrated?.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
+    expect(migrated?.checkpoint.player).toEqual({ x: 1_280, y: 800 });
+    expect(migrated?.checkpoint.spawn.spawnedBosses).toContain('boss_guardian');
+    expect(migrated?.state.activeBoss?.behavior).toBe('chase');
+  });
+
+  it('rejects a corrupt current checkpoint instead of trusting its shape', () => {
+    const snapshot = createRunSnapshot('bad-checkpoint', makeState());
+    snapshot.checkpoint.combo.remainingMs = Number.NaN;
+    expect(migrateRunSnapshot(snapshot)).toBeUndefined();
+  });
+
+  it('restores random, mission, combo, and spawn generator state', () => {
+    const random = mulberry32(123);
+    random();
+    const randomState = random.getState();
+    const expectedNext = random();
+    expect(mulberry32(999, randomState)()).toBe(expectedNext);
+
+    const mission = new MissionService(() => 0);
+    mission.update(18_000, 18_000);
+    mission.record('kill');
+    const restoredMission = new MissionService(() => 1);
+    restoredMission.restore(mission.snapshot());
+    expect(restoredMission.snapshot()).toEqual(mission.snapshot());
+
+    const combo = new ComboSystem();
+    combo.registerKill();
+    combo.registerKill();
+    combo.update(800);
+    const restoredCombo = new ComboSystem();
+    restoredCombo.restore(combo.snapshot());
+    expect(restoredCombo.snapshot()).toEqual(combo.snapshot());
+
+    const spawn = new SpawnSystem();
+    spawn.restoreBossProgress(['boss_guardian'], 'boss_caster');
+    const restoredSpawn = new SpawnSystem();
+    restoredSpawn.restore(spawn.snapshot());
+    expect(restoredSpawn.snapshot()).toEqual(spawn.snapshot());
+  });
+
   it('queries only nearby active objects without duplicates', () => {
     const grid = new SpatialHashGrid<{ uid: number; x: number; y: number; active: boolean }>(100);
     grid.rebuild([{ uid: 1, x: 30, y: 30, active: true }, { uid: 2, x: 350, y: 30, active: true }, { uid: 3, x: 40, y: 40, active: false }]);
     expect(grid.queryRadius(0, 0, 80).map((item) => item.uid)).toEqual([1]);
   });
 });
+
+describe('checkpoint persistence', () => {
+  it('serializes overlapping autosaves in request order', async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const release = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const store: AsyncKeyValueStore = {
+      get: async () => undefined,
+      set: async (_key, value) => {
+        const snapshot = value as RunSnapshot;
+        if (snapshot.runId === 'first') {
+          markFirstStarted();
+          await release;
+        }
+        order.push(snapshot.runId);
+      },
+      delete: async () => undefined
+    };
+    const adapter = new IndexedDbSaveAdapter(store, createMemoryStorage());
+    const first = adapter.saveRun(createRunSnapshot('first', makeState()));
+    const second = adapter.saveRun(createRunSnapshot('second', makeState()));
+    await firstStarted;
+    expect(order).toEqual([]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['first', 'second']);
+  });
+
+  it('uses a validated local fallback when IndexedDB fails', async () => {
+    const failedStore: AsyncKeyValueStore = {
+      get: async () => { throw new Error('blocked'); },
+      set: async () => { throw new Error('blocked'); },
+      delete: async () => { throw new Error('blocked'); }
+    };
+    const fallback = createMemoryStorage();
+    const adapter = new IndexedDbSaveAdapter(failedStore, fallback);
+    await adapter.saveRun(createRunSnapshot('fallback', makeState()));
+    expect((await adapter.loadRun())?.runId).toBe('fallback');
+  });
+});
+
+function createMemoryStorage(): FallbackStorage {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => { values.set(key, value); },
+    removeItem: (key) => { values.delete(key); }
+  };
+}

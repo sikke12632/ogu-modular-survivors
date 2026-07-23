@@ -1,19 +1,50 @@
 # Save schema
 
-IndexedDB 키: `ogu-modular-active-run`
+기본 IndexedDB 키: `ogu-modular-active-run`
+
+IndexedDB 실패 시 localStorage 대체 키: `ogu-modular-active-run-fallback`
 
 ```ts
 interface RunSnapshot {
-  schemaVersion: number;
+  schemaVersion: 2;
   gameVersion: string;
   savedAt: number;
   runId: string;
   state: RunState;
+  checkpoint: RunCheckpoint;
 }
 ```
 
-`RunState`에는 캐릭터, 경과 시간, 시드, 점수, 처치, 레벨/경험치, 필살기, 무기, 보조 능력, 계산된 플레이어 능력치, 처치한 보스와 활성 보스 축약 상태가 들어갑니다.
+## 저장 범위
 
-Phaser Sprite, Physics Body, Scene, 이벤트 리스너, 오디오 컨텍스트는 저장하지 않습니다. 복구할 때 풀과 물리 객체를 다시 만들고, 저장된 경과 시간에서 웨이브를 재개합니다.
+`RunState`에는 캐릭터, 경과 시간, 시드, 점수, 처치, 레벨/경험치, 필살기, 무기, 보조 능력, 계산된 플레이어 능력치와 처치한 보스가 들어갑니다.
 
-현재 `schemaVersion`은 1입니다. 알 수 없는 버전은 안전하게 거부하며 새 판을 시작할 수 있게 합니다.
+`RunCheckpoint`에는 이어하기 정확도에 필요한 런타임 상태가 들어갑니다.
+
+- 플레이어 위치
+- 현재 웨이브 생성 누적치, 생성 예산, 이미 등장한 보스
+- 미션 종류·진행도·남은 시간과 다음 미션 대기 시간
+- 콤보 수·남은 유지 시간·어셈블 지급 여부
+- 필드에 남은 일반/보스 보물상자
+- 상자 및 어셈블 타이머
+- 결정론적 난수 생성기 상태
+
+활성 보스는 체력과 페이즈뿐 아니라 위치, 공격력, 일반·특수·방사형 공격 쿨다운, 행동 단계, 행동 타이머, 돌진 방향, 둔화 남은 시간과 소환 진행도를 저장합니다.
+
+Phaser Sprite, Physics Body, Scene, 이벤트 리스너와 오디오 컨텍스트는 저장하지 않습니다. 이어하기 시 런타임 객체를 새로 만들고 검증된 체크포인트 값을 주입합니다.
+
+## 쓰기와 장애 복구
+
+- 모든 자동저장은 호출 순서대로 직렬화되어 오래된 쓰기가 최신 체크포인트를 덮지 않습니다.
+- IndexedDB의 단일 레코드 쓰기를 체크포인트 커밋 단위로 사용합니다.
+- IndexedDB 쓰기가 실패하면 같은 검증 스키마를 localStorage에 저장합니다.
+- 두 저장소가 모두 실패하면 게임 내 오류 메시지를 표시하며, 저장 종료 동작은 진행하지 않습니다.
+- 새 게임·포기·종료 시 두 저장소를 함께 정리합니다.
+
+## 마이그레이션과 검증
+
+현재 `schemaVersion`은 2입니다.
+
+- v1 저장은 플레이어 중앙 위치와 안전한 시스템 기본값을 채워 v2로 이관합니다.
+- v2 저장도 숫자 범위, 데이터 ID, 미션·콤보·웨이브·보스 상태를 검증합니다.
+- 알 수 없는 버전이나 손상된 체크포인트는 실행 상태로 캐스팅하지 않고 거부합니다.

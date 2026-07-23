@@ -35,6 +35,10 @@ export class WaveDirector {
     this.spawnedBosses.clear();
   }
 
+  snapshot(): string[] {
+    return [...this.spawnedBosses];
+  }
+
   get progress(): number {
     return this.spawnedBosses.size;
   }

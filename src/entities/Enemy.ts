@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { EnemyDefinition } from '../data/enemies';
+import type { RandomFn } from '../core/math/random';
 
 export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
   uid = 0;
@@ -21,15 +22,15 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, texture);
   }
 
-  activate(uid: number, definition: EnemyDefinition, hpScale: number, damageScale: number): this {
+  activate(uid: number, definition: EnemyDefinition, hpScale: number, damageScale: number, random: RandomFn = Math.random): this {
     this.enableBody(true, this.x, this.y, true, true);
     this.uid = uid;
     this.definition = { ...definition, damage: definition.damage * damageScale };
     this.hp = definition.hp * hpScale;
     this.maxHp = this.hp;
-    this.attackCooldownMs = 600 + Math.random() * 700;
-    this.specialCooldownMs = 1_800 + Math.random() * 1_200;
-    this.radialCooldownMs = 1_000 + Math.random() * 700;
+    this.attackCooldownMs = 600 + random() * 700;
+    this.specialCooldownMs = 1_800 + random() * 1_200;
+    this.radialCooldownMs = 1_000 + random() * 700;
     this.state = 'chase';
     this.stateTimerMs = 0;
     this.phase = 1;

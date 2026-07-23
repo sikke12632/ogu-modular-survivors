@@ -1,3 +1,9 @@
+export interface ComboSystemState {
+  count: number;
+  remainingMs: number;
+  awardedAssemble: boolean;
+}
+
 export class ComboSystem {
   count = 0;
   private remainingMs = 0;
@@ -21,5 +27,19 @@ export class ComboSystem {
     this.count = 0;
     this.remainingMs = 0;
     this.awardedAssemble = false;
+  }
+
+  snapshot(): ComboSystemState {
+    return {
+      count: this.count,
+      remainingMs: this.remainingMs,
+      awardedAssemble: this.awardedAssemble
+    };
+  }
+
+  restore(state: ComboSystemState): void {
+    this.count = Math.max(0, Math.min(999, Math.floor(state.count)));
+    this.remainingMs = Math.max(0, state.remainingMs);
+    this.awardedAssemble = state.awardedAssemble;
   }
 }
