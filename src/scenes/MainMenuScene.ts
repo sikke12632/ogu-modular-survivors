@@ -32,8 +32,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.makeButton(906, 312, 300, 72, '새 게임 시작', 0x176f7e, () => {
       sfx.unlock(); sfx.play('ui');
-      void saveAdapter.clearRun();
-      this.scene.start('GameScene', { characterId: this.selectedCharacter });
+      void this.startNewRun();
     });
     this.continueButton = this.makeButton(906, 402, 300, 64, '이어하기 확인 중…', 0x44367c, () => {
       if (!this.snapshot) return;
@@ -58,20 +57,37 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   private async refreshLocalData(): Promise<void> {
-    const [snapshot, profile] = await Promise.all([saveAdapter.loadRun(), platformGateway.loadProfile()]);
+    const [snapshotResult, profileResult] = await Promise.allSettled([saveAdapter.loadRun(), platformGateway.loadProfile()]);
     if (!this.sys.isActive()) return;
+    const snapshot = snapshotResult.status === 'fulfilled' ? snapshotResult.value : undefined;
     this.snapshot = snapshot;
     if (this.continueButton) {
       const label = this.continueButton.getByName('label') as Phaser.GameObjects.Text;
       label.setText(snapshot ? `이어하기 · Lv.${snapshot.state.level}` : '저장된 판 없음');
       this.setButtonEnabled(this.continueButton, Boolean(snapshot));
     }
-    this.profileText?.setText([
-      `최고 점수  ${profile.bestScore.toLocaleString()}`,
-      `최장 생존  ${this.formatTime(profile.bestTimeMs)}`,
-      `도전 ${profile.totalRuns}회 · 승리 ${profile.victories}회`,
-      '기록은 이 기기의 IndexedDB에 저장됩니다.'
-    ]);
+    if (profileResult.status === 'fulfilled') {
+      const profile = profileResult.value;
+      this.profileText?.setText([
+        `최고 점수  ${profile.bestScore.toLocaleString()}`,
+        `최장 생존  ${this.formatTime(profile.bestTimeMs)}`,
+        `도전 ${profile.totalRuns}회 · 승리 ${profile.victories}회`,
+        '기록은 이 기기의 IndexedDB에 저장됩니다.'
+      ]);
+    } else {
+      this.profileText?.setText('로컬 기록을 불러오지 못했습니다.');
+    }
+    if (snapshotResult.status === 'rejected') this.showToast('저장된 게임을 불러오지 못했습니다.');
+  }
+
+  private async startNewRun(): Promise<void> {
+    try {
+      await saveAdapter.clearRun();
+    } catch {
+      this.showToast('기존 저장 데이터를 지우지 못했습니다.');
+      return;
+    }
+    this.scene.start('GameScene', { characterId: this.selectedCharacter });
   }
 
   private createCharacterCard(id: CharacterId, x: number, y: number): Phaser.GameObjects.Container {

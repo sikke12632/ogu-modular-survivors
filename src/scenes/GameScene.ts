@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { sfx } from '../audio/ProceduralSfx';
 import { eventBus, GameEvents, type HudSnapshot } from '../core/events/EventBus';
 import { SpatialHashGrid } from '../core/math/SpatialHashGrid';
-import { mulberry32, range, type RandomFn } from '../core/math/random';
+import { mulberry32, range, type StatefulRandomFn } from '../core/math/random';
 import { getCharacter, type CharacterId } from '../data/characters';
 import { getEnemy, type BossId, type EnemyDefinition } from '../data/enemies';
 import { getWeapon } from '../data/weapons';
@@ -12,7 +12,7 @@ import { MissionService } from '../domain/missions/MissionService';
 import { applyTreasureReward, decideChestSpawn } from '../domain/progression/TreasureReward';
 import { applyUpgradeChoice, draftUpgrades, type UpgradeChoice } from '../domain/progression/UpgradeDraft';
 import { applyExperience, xpRequiredForLevel } from '../domain/progression/Experience';
-import { createRunSnapshot, type RunSnapshot } from '../domain/run/RunSerializer';
+import { createRunSnapshot, type RunCheckpoint, type RunSnapshot } from '../domain/run/RunSerializer';
 import type { RunState } from '../domain/run/RunState';
 import { EnemySprite } from '../entities/Enemy';
 import { PickupSprite } from '../entities/Pickup';
@@ -55,7 +55,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private readonly performanceSystem = new PerformanceSystem();
   private grid = new SpatialHashGrid<EnemySprite>(160);
   private missionSystem!: MissionService;
-  private random!: RandomFn;
+  private random!: StatefulRandomFn;
   private characterId!: CharacterId;
   private snapshot?: RunSnapshot;
   private enemyUid = 1;
@@ -66,6 +66,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private assembleRemainingMs = 0;
   private assembleFireMs = 0;
   private playerInvulnerableUntil = 0;
+  private saveErrorVisible = false;
   private ended = false;
   private zones: DamageZone[] = [];
   private meteors: MeteorEffect[] = [];
@@ -85,23 +86,34 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   create(): void {
     this.resetRuntimeCollections();
     this.createRunState();
-    this.random = mulberry32(this.state.seed + Math.floor(this.state.elapsedMs));
+    const checkpoint = this.snapshot?.checkpoint;
+    this.random = mulberry32(this.state.seed + Math.floor(this.state.elapsedMs), checkpoint?.randomState);
     this.missionSystem = new MissionService(this.random);
+    if (checkpoint) {
+      this.spawnSystem.restore(checkpoint.spawn);
+      this.comboSystem.restore(checkpoint.combo);
+      this.missionSystem.restore(checkpoint.mission);
+      this.chestTimerMs = checkpoint.timers.chestMs;
+      this.assembleRemainingMs = checkpoint.timers.assembleMs;
+      this.assembleFireMs = checkpoint.timers.assembleFireMs;
+    }
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.drawArena();
     this.createGroups();
     this.createPlayer();
+    this.restoreImportantPickups();
     this.createCollisions();
     this.inputSystem = new InputSystem(this);
     this.inputSystem.create();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setZoom(1);
     this.scene.launch('UIScene', { gameScene: this });
-    this.spawnSystem.restoreBossProgress(this.state.bossesDefeated, this.state.activeBoss?.id);
+    if (!checkpoint) this.spawnSystem.restoreBossProgress(this.state.bossesDefeated, this.state.activeBoss?.id);
     if (this.state.activeBoss) {
       const restored = this.state.activeBoss;
       this.spawnBoss(restored.id, 1, 1, restored);
     }
+    if (checkpoint) this.random.setState(checkpoint.randomState);
     this.events.on(Phaser.Scenes.Events.RESUME, this.onResume, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -238,20 +250,27 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   async saveAndExit(): Promise<void> {
-    await this.saveRun();
+    if (!await this.saveRun()) {
+      this.scene.resume();
+      return;
+    }
     this.scene.stop('UIScene');
     this.scene.stop();
     this.scene.start('MainMenuScene');
   }
 
   restartRun(): void {
-    void saveAdapter.clearRun();
-    this.scene.stop('UIScene');
-    this.scene.restart({ characterId: this.characterId });
+    void this.restartRunSafely();
   }
 
   async abandonRun(): Promise<void> {
-    await saveAdapter.clearRun();
+    try {
+      await saveAdapter.clearRun();
+    } catch {
+      this.showMessage('저장 데이터 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.', '#ff718d', 2_800);
+      this.scene.resume();
+      return;
+    }
     this.scene.stop('UIScene');
     this.scene.stop();
     this.scene.start('MainMenuScene');
@@ -309,6 +328,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.assembleRemainingMs = 0;
     this.assembleFireMs = 0;
     this.playerInvulnerableUntil = 0;
+    this.saveErrorVisible = false;
     this.zones = [];
     this.meteors = [];
     this.beams = [];
@@ -345,7 +365,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private createPlayer(): void {
     const character = getCharacter(this.characterId);
-    this.player = this.physics.add.sprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, `player-${character.id}`).setDepth(10);
+    const restored = this.snapshot?.checkpoint.player;
+    const x = Phaser.Math.Clamp(restored?.x ?? WORLD_WIDTH / 2, 30, WORLD_WIDTH - 30);
+    const y = Phaser.Math.Clamp(restored?.y ?? WORLD_HEIGHT / 2, 30, WORLD_HEIGHT - 30);
+    this.player = this.physics.add.sprite(x, y, `player-${character.id}`).setDepth(10);
     this.player.setCircle(22, 10, 10).setCollideWorldBounds(true);
   }
 
@@ -676,7 +699,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const y = Phaser.Math.Clamp(originY + Math.sin(angle) * distance, 40, WORLD_HEIGHT - 40);
     const enemy = this.enemies.get(x, y, `enemy-${definition.id}`) as EnemySprite | null;
     if (!enemy) return undefined;
-    enemy.activate(this.enemyUid++, definition, hpScale, damageScale);
+    enemy.activate(this.enemyUid++, definition, hpScale, damageScale, this.random);
     enemy.setPosition(x, y).setCircle(definition.radius).setDepth(8);
     enemy.setDisplaySize(definition.radius * 2.4, definition.radius * 2.4);
     enemy.setCollideWorldBounds(true);
@@ -688,11 +711,28 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const boss = this.spawnEnemy(definition, hpScale, damageScale);
     if (!boss) return;
     if (restore) {
+      boss.setPosition(
+        Phaser.Math.Clamp(restore.x, 40, WORLD_WIDTH - 40),
+        Phaser.Math.Clamp(restore.y, 40, WORLD_HEIGHT - 40)
+      );
       boss.hp = restore.hp;
       boss.maxHp = restore.maxHp;
       boss.phase = restore.phase;
+      boss.definition = { ...boss.definition!, damage: restore.damage };
+      boss.attackCooldownMs = restore.attackCooldownMs;
+      boss.specialCooldownMs = restore.specialCooldownMs;
+      boss.radialCooldownMs = restore.radialCooldownMs;
+      boss.state = restore.behavior;
+      boss.stateTimerMs = restore.behaviorTimerMs;
+      boss.dashX = restore.dashX;
+      boss.dashY = restore.dashY;
+      boss.slowUntil = this.nowMs + restore.slowRemainingMs;
+      boss.spawnedAdds = restore.spawnedAdds;
+      if (boss.state === 'telegraph') boss.setTint(0xfff0a6);
+      else if (boss.state === 'recover') boss.setAlpha(0.6);
+      else if (boss.state === 'dash') boss.setVelocity(boss.dashX * definition.speed * 7, boss.dashY * definition.speed * 7);
     }
-    this.state.activeBoss = { id, hp: boss.hp, maxHp: boss.maxHp, phase: boss.phase };
+    this.state.activeBoss = this.captureBossState(boss);
     this.showMessage(`보스 출현 · ${definition.name}`, '#ff738f');
     sfx.play('boss', 0.14);
     this.cameras.main.shake(350, 0.012);
@@ -922,9 +962,20 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     eventBus.emit(GameEvents.message, { message, color, durationMs });
   }
 
-  private async saveRun(): Promise<void> {
-    if (this.ended) return;
-    await saveAdapter.saveRun(createRunSnapshot(this.runId, this.state));
+  private async saveRun(): Promise<boolean> {
+    if (this.ended) return true;
+    this.syncActiveBossState();
+    try {
+      await saveAdapter.saveRun(createRunSnapshot(this.runId, this.state, this.captureCheckpoint()));
+      this.saveErrorVisible = false;
+      return true;
+    } catch {
+      if (!this.saveErrorVisible) {
+        this.saveErrorVisible = true;
+        this.showMessage('체크포인트 저장에 실패했습니다. 저장 공간과 브라우저 설정을 확인해 주세요.', '#ff718d', 3_200);
+      }
+      return false;
+    }
   }
 
   private async endRun(victory: boolean): Promise<void> {
@@ -934,8 +985,16 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       runId: this.runId, characterId: this.characterId, victory, score: Math.floor(this.state.score),
       kills: this.state.kills, level: this.state.level, elapsedMs: Math.min(this.state.elapsedMs, this.runDurationMs), endedAt: Date.now()
     };
-    await saveAdapter.clearRun();
-    await platformGateway.submit(result);
+    try {
+      await saveAdapter.clearRun();
+    } catch {
+      this.showMessage('완료된 체크포인트를 지우지 못했습니다.', '#ffb35c', 2_200);
+    }
+    try {
+      await platformGateway.submit(result);
+    } catch {
+      this.showMessage('로컬 최고 기록을 저장하지 못했습니다.', '#ffb35c', 2_200);
+    }
     this.scene.stop('UIScene');
     this.scene.start('ResultScene', { result });
   }
@@ -952,6 +1011,77 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.events.off(Phaser.Scenes.Events.RESUME, this.onResume, this);
     eventBus.removeAllListeners(GameEvents.hud);
+  }
+
+  private async restartRunSafely(): Promise<void> {
+    try {
+      await saveAdapter.clearRun();
+    } catch {
+      this.showMessage('저장 데이터 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.', '#ff718d', 2_800);
+      this.scene.resume();
+      return;
+    }
+    this.scene.stop('UIScene');
+    this.scene.restart({ characterId: this.characterId });
+  }
+
+  private captureCheckpoint(): RunCheckpoint {
+    const importantPickups = (this.pickups.getChildren() as PickupSprite[])
+      .filter((pickup) => pickup.active && pickup.pickupType === 'chest')
+      .map((pickup) => ({
+        x: pickup.x,
+        y: pickup.y,
+        value: pickup.value,
+        bossChest: pickup.bossChest
+      }));
+    return {
+      player: { x: this.player.x, y: this.player.y },
+      spawn: this.spawnSystem.snapshot(),
+      mission: this.missionSystem.snapshot(),
+      combo: this.comboSystem.snapshot(),
+      importantPickups,
+      randomState: this.random.getState(),
+      timers: {
+        chestMs: Math.max(0, this.chestTimerMs),
+        assembleMs: Math.max(0, this.assembleRemainingMs),
+        assembleFireMs: Math.max(0, this.assembleFireMs)
+      }
+    };
+  }
+
+  private restoreImportantPickups(): void {
+    for (const saved of this.snapshot?.checkpoint.importantPickups ?? []) {
+      const x = Phaser.Math.Clamp(saved.x, 30, WORLD_WIDTH - 30);
+      const y = Phaser.Math.Clamp(saved.y, 30, WORLD_HEIGHT - 30);
+      const pickup = this.pickups.get(x, y, 'chest') as PickupSprite | null;
+      pickup?.activate(x, y, 'chest', saved.value, saved.bossChest).setDepth(7);
+    }
+  }
+
+  private syncActiveBossState(): void {
+    const boss = this.getActiveBoss();
+    if (boss) this.state.activeBoss = this.captureBossState(boss);
+  }
+
+  private captureBossState(boss: EnemySprite): NonNullable<RunState['activeBoss']> {
+    return {
+      id: boss.definition!.id as BossId,
+      hp: Math.max(0, boss.hp),
+      maxHp: boss.maxHp,
+      phase: boss.phase,
+      x: boss.x,
+      y: boss.y,
+      damage: boss.definition!.damage,
+      attackCooldownMs: Math.max(0, boss.attackCooldownMs),
+      specialCooldownMs: Math.max(0, boss.specialCooldownMs),
+      radialCooldownMs: Math.max(0, boss.radialCooldownMs),
+      behavior: boss.state,
+      behaviorTimerMs: Math.max(0, boss.stateTimerMs),
+      dashX: boss.dashX,
+      dashY: boss.dashY,
+      slowRemainingMs: Math.max(0, boss.slowUntil - this.nowMs),
+      spawnedAdds: boss.spawnedAdds
+    };
   }
 }
 

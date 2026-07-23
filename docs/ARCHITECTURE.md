@@ -19,7 +19,8 @@ GameScene
   ├─ PerformanceSystem
   └─ EventBus → UIScene
 
-RunState → RunSerializer → SaveAdapter → IndexedDB
+RunState + RunCheckpoint → RunSerializer → SaveAdapter → IndexedDB
+                                                   └→ localStorage fallback
 RunResult → ScoreGateway → LocalPlatformGateway
 ```
 
@@ -30,7 +31,7 @@ RunResult → ScoreGateway → LocalPlatformGateway
 - `src/systems`: 프레임 업데이트 단위 행동입니다.
 - `src/entities`: 풀링되는 Phaser 런타임 객체입니다.
 - `src/scenes`: 메뉴, 전투 조율, HUD, 모달과 결과 화면입니다.
-- `src/persistence`: 직렬화 가능한 스냅샷만 저장합니다.
+- `src/persistence`: 검증된 직렬화 가능 스냅샷을 순서대로 저장하고 IndexedDB 장애 시 로컬 대체본을 관리합니다.
 - `src/platform`: 로컬 기록과 향후 서버 점수 제출의 경계입니다.
 
 ## 콘텐츠 추가

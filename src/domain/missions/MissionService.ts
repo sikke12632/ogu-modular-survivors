@@ -15,6 +15,11 @@ export interface ActiveMission {
 
 export type MissionEvent = 'kill' | 'eliteKill' | 'collect' | 'damaged';
 
+export interface MissionServiceState {
+  active?: ActiveMission;
+  cooldownMs: number;
+}
+
 export class MissionService {
   active?: ActiveMission;
   private cooldownMs = 18_000;
@@ -63,6 +68,18 @@ export class MissionService {
   resolve(): void {
     this.active = undefined;
     this.cooldownMs = 22_000 + this.random() * 15_000;
+  }
+
+  snapshot(): MissionServiceState {
+    return {
+      active: this.active ? structuredClone(this.active) : undefined,
+      cooldownMs: this.cooldownMs
+    };
+  }
+
+  restore(state: MissionServiceState): void {
+    this.active = state.active ? structuredClone(state.active) : undefined;
+    this.cooldownMs = Math.max(0, state.cooldownMs);
   }
 
   private create(elapsedMs: number): ActiveMission {

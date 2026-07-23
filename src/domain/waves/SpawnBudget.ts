@@ -25,4 +25,10 @@ export class SpawnBudget {
   }
 
   reset(): void { this.credit = 0; }
+
+  snapshot(): number { return this.credit; }
+
+  restore(credit: number): void {
+    this.credit = Math.max(0, credit);
+  }
 }

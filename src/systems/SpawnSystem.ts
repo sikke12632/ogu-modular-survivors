@@ -17,6 +17,13 @@ export interface SpawnUpdateContext {
   spawnBoss(id: BossId, hpScale: number, damageScale: number): void;
 }
 
+export interface SpawnSystemState {
+  spawnAccumulator: number;
+  lastWaveId: number;
+  budgetCredit: number;
+  spawnedBosses: string[];
+}
+
 export class SpawnSystem {
   readonly director = new WaveDirector();
   private readonly budget = new SpawnBudget();
@@ -32,6 +39,23 @@ export class SpawnSystem {
 
   restoreBossProgress(defeatedBosses: readonly string[], activeBossId?: BossId): void {
     this.director.restore({ defeatedBosses, activeBossId });
+  }
+
+  snapshot(): SpawnSystemState {
+    return {
+      spawnAccumulator: this.spawnAccumulator,
+      lastWaveId: this.lastWaveId,
+      budgetCredit: this.budget.snapshot(),
+      spawnedBosses: this.director.snapshot()
+    };
+  }
+
+  restore(state: SpawnSystemState): void {
+    this.reset();
+    this.spawnAccumulator = Math.max(0, state.spawnAccumulator);
+    this.lastWaveId = Math.max(0, Math.floor(state.lastWaveId));
+    this.budget.restore(state.budgetCredit);
+    this.director.restoreBosses(state.spawnedBosses);
   }
 
   update(context: SpawnUpdateContext): WaveDefinition | undefined {
