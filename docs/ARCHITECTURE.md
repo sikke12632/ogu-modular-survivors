@@ -19,9 +19,10 @@ GameScene
   ├─ PerformanceSystem
   └─ EventBus → UIScene
 
-RunState + RunCheckpoint → RunSerializer → SaveAdapter → IndexedDB
-                                                   └→ localStorage fallback
-RunResult → ScoreGateway → LocalPlatformGateway
+GameScene → RunLifecycleService
+             ├─ RunState + RunCheckpoint → RunSerializer → SaveAdapter → IndexedDB
+             │                                             └→ localStorage fallback / deletion tombstone
+             └─ RunResult → ScoreGateway → LocalPlatformGateway
 ```
 
 ## 책임 경계
@@ -33,6 +34,7 @@ RunResult → ScoreGateway → LocalPlatformGateway
 - `src/scenes`: 메뉴, 전투 조율, HUD, 모달과 결과 화면입니다.
 - `src/persistence`: 검증된 직렬화 가능 스냅샷을 순서대로 저장하고 IndexedDB 장애 시 로컬 대체본을 관리합니다.
 - `src/platform`: 로컬 기록과 향후 서버 점수 제출의 경계입니다.
+- `src/app`: 화면과 저장·플랫폼 경계를 연결하는 애플리케이션 서비스와 개발 전용 QA 브리지입니다.
 
 ## 콘텐츠 추가
 
@@ -45,4 +47,4 @@ Firebase나 다른 서버를 붙일 때는 `LocalPlatformGateway`를 대체하�
 
 ## 검증과 배포
 
-`main` 대상 PR은 단위 테스트, TypeScript/PWA 빌드와 Playwright 전체 검증을 통과해야 합니다. Playwright는 짧은 장면 회귀 외에 가속된 전체 웨이브, 실제 터치 입력, 서비스 워커 오프라인 재실행을 확인합니다. GitHub Pages 배포는 공개 저장소에서만 검증 완료된 `dist` 아티팩트를 사용합니다.
+`main` 대상 PR은 단위 테스트, TypeScript/PWA 빌드와 Playwright 전체 검증을 통과해야 합니다. Playwright는 비공개 장면 필드 대신 `__OGU_TEST__`의 제한된 개발 전용 계약을 사용해 가속된 전체 웨이브, 실제 터치 입력, 서비스 워커 오프라인 재실행을 확인합니다. GitHub Pages 배포는 공개 저장소에서만 검증 완료된 `dist` 아티팩트를 사용합니다.

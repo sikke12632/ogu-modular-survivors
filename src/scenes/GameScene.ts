@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { runLifecycleService } from '../app/RunLifecycleService';
 import { sfx } from '../audio/ProceduralSfx';
 import { eventBus, GameEvents, type HudSnapshot } from '../core/events/EventBus';
 import { SpatialHashGrid } from '../core/math/SpatialHashGrid';
@@ -12,13 +13,13 @@ import { MissionService } from '../domain/missions/MissionService';
 import { applyTreasureReward, decideChestSpawn } from '../domain/progression/TreasureReward';
 import { applyUpgradeChoice, draftUpgrades, type UpgradeChoice } from '../domain/progression/UpgradeDraft';
 import { applyExperience, xpRequiredForLevel } from '../domain/progression/Experience';
-import { createRunSnapshot, type RunCheckpoint, type RunSnapshot } from '../domain/run/RunSerializer';
+import { type RunCheckpoint, type RunSnapshot } from '../domain/run/RunSerializer';
 import type { RunState } from '../domain/run/RunState';
+import { createBaseRunStats } from '../domain/run/RunStatsCalculator';
 import { EnemySprite } from '../entities/Enemy';
 import { PickupSprite } from '../entities/Pickup';
 import { ProjectileSprite } from '../entities/Projectile';
-import { saveAdapter } from '../persistence/IndexedDbSaveAdapter';
-import { platformGateway, type RunResult } from '../platform/LocalPlatformGateway';
+import type { RunResult } from '../platform/LocalPlatformGateway';
 import { ComboSystem } from '../systems/ComboSystem';
 import { InputSystem } from '../systems/InputSystem';
 import { PerformanceSystem } from '../systems/PerformanceSystem';
@@ -68,13 +69,18 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private playerInvulnerableUntil = 0;
   private saveErrorVisible = false;
   private ended = false;
+  private qaLastUltimateAt = 0;
   private zones: DamageZone[] = [];
   private meteors: MeteorEffect[] = [];
   private beams: BeamEffect[] = [];
   private pulses: PulseEffect[] = [];
   private enemyHazards: EnemyHazard[] = [];
-  private readonly devMode = new URLSearchParams(location.search).has('dev');
-  private readonly timeScale = this.devMode ? 20 : 1;
+  private readonly devParams = new URLSearchParams(location.search);
+  private readonly devMode = this.devParams.has('dev');
+  private readonly timeScale = this.devMode
+    ? Phaser.Math.Clamp(Number(this.devParams.get('timeScale')) || 20, 1, 100)
+    : 1;
+  private readonly maxScaledDelta = this.devMode && this.timeScale > 20 ? 1_000 : 240;
 
   constructor() { super('GameScene'); }
 
@@ -117,14 +123,14 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.events.on(Phaser.Scenes.Events.RESUME, this.onResume, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
-    this.showMessage(this.devMode ? '개발 가속 모드 ×20' : '15분 생존을 시작합니다', this.devMode ? '#ffcf65' : '#7df8ff');
+    this.showMessage(this.devMode ? `개발 가속 모드 ×${this.timeScale}` : '15분 생존을 시작합니다', this.devMode ? '#ffcf65' : '#7df8ff');
     sfx.unlock();
   }
 
   update(_time: number, delta: number): void {
     if (this.ended) return;
     const safeDelta = Math.min(60, delta);
-    const scaledDelta = Math.min(240, safeDelta * this.timeScale);
+    const scaledDelta = Math.min(this.maxScaledDelta, safeDelta * this.timeScale);
     this.nowMs += safeDelta;
     this.state.elapsedMs += scaledDelta;
     this.inputSystem.update();
@@ -243,6 +249,31 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.useUltimate();
   }
 
+  runQaAutomationStep(): void {
+    if (!this.devMode || this.ended) return;
+    this.playerInvulnerableUntil = Number.POSITIVE_INFINITY;
+    this.state.stats.maxHp = 1_000_000;
+    this.state.stats.hp = this.state.stats.maxHp;
+    this.state.stats.damage = 2_500;
+    this.state.stats.moveSpeed = 420;
+
+    if (this.scene.isActive('LevelUpScene')) {
+      const choice = this.getUpgradeChoices()[0];
+      if (choice) this.selectUpgrade(choice);
+      this.scene.resume();
+      this.scene.stop('LevelUpScene');
+    }
+    if (this.scene.isActive('TreasureScene')) {
+      this.scene.resume();
+      this.scene.stop('TreasureScene');
+    }
+    if (this.nowMs - this.qaLastUltimateAt >= 1_000) {
+      this.qaLastUltimateAt = this.nowMs;
+      this.state.ultimate = this.state.ultimateMax;
+      this.requestUltimate();
+    }
+  }
+
   openPause(): void {
     if (this.scene.isActive('PauseScene')) return;
     this.scene.pause();
@@ -265,7 +296,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   async abandonRun(): Promise<void> {
     try {
-      await saveAdapter.clearRun();
+      await runLifecycleService.clearCheckpoint();
     } catch {
       this.showMessage('저장 데이터 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.', '#ff718d', 2_800);
       this.scene.resume();
@@ -298,11 +329,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       ultimateMax: 220,
       weapons: [{ id: character.startingWeapon, level: 1, evolved: false, cooldownMs: 300 }],
       passives: {},
-      stats: {
-        maxHp: character.maxHp, hp: character.maxHp, moveSpeed: character.moveSpeed,
-        damage: character.damageBonus, cooldown: character.cooldownBonus, area: character.areaBonus,
-        duration: 1, pickup: 1, armor: character.armor, evasion: 0
-      },
+      stats: createBaseRunStats(this.characterId),
       bossesDefeated: []
     };
     applyUpgradeChoice(this.state, { kind: 'passive', id: character.startingPassive, title: '', description: '', icon: '', isNew: true });
@@ -319,6 +346,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.comboSystem.reset();
     this.performanceSystem.reset();
     this.ended = false;
+    this.qaLastUltimateAt = 0;
     this.nowMs = 0;
     this.enemyUid = 1;
     this.gridTimerMs = 0;
@@ -966,7 +994,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     if (this.ended) return true;
     this.syncActiveBossState();
     try {
-      await saveAdapter.saveRun(createRunSnapshot(this.runId, this.state, this.captureCheckpoint()));
+      await runLifecycleService.saveCheckpoint(this.runId, this.state, this.captureCheckpoint());
       this.saveErrorVisible = false;
       return true;
     } catch {
@@ -985,14 +1013,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       runId: this.runId, characterId: this.characterId, victory, score: Math.floor(this.state.score),
       kills: this.state.kills, level: this.state.level, elapsedMs: Math.min(this.state.elapsedMs, this.runDurationMs), endedAt: Date.now()
     };
-    try {
-      await saveAdapter.clearRun();
-    } catch {
+    const completion = await runLifecycleService.completeRun(result);
+    if (!completion.checkpointCleared) {
       this.showMessage('완료된 체크포인트를 지우지 못했습니다.', '#ffb35c', 2_200);
     }
-    try {
-      await platformGateway.submit(result);
-    } catch {
+    if (!completion.resultSubmitted) {
       this.showMessage('로컬 최고 기록을 저장하지 못했습니다.', '#ffb35c', 2_200);
     }
     this.scene.stop('UIScene');
@@ -1010,12 +1035,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private onShutdown(): void {
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.events.off(Phaser.Scenes.Events.RESUME, this.onResume, this);
-    eventBus.removeAllListeners(GameEvents.hud);
   }
 
   private async restartRunSafely(): Promise<void> {
     try {
-      await saveAdapter.clearRun();
+      await runLifecycleService.clearCheckpoint();
     } catch {
       this.showMessage('저장 데이터 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.', '#ff718d', 2_800);
       this.scene.resume();

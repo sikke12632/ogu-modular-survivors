@@ -26,48 +26,10 @@ test('completes the accelerated full 15-minute timeline without runtime errors',
   test.setTimeout(100_000);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  await startRun(page, '/?dev=1');
+  await startRun(page, '/?dev=1&timeScale=80');
 
   await page.evaluate(() => {
-    const game = window.__OGU_GAME__!;
-    let lastUltimateAt = 0;
-    window.setInterval(() => {
-      if (!game.scene.isActive('GameScene') && !game.scene.isPaused('GameScene')) return;
-      const scene = game.scene.getScene('GameScene') as unknown as {
-        nowMs: number;
-        playerInvulnerableUntil: number;
-        state: {
-          pendingLevelUps: number;
-          ultimate: number;
-          ultimateMax: number;
-          stats: { hp: number; maxHp: number; damage: number; moveSpeed: number };
-        };
-        getUpgradeChoices(): unknown[];
-        selectUpgrade(choice: unknown): void;
-        requestUltimate(): void;
-      };
-      scene.playerInvulnerableUntil = Number.POSITIVE_INFINITY;
-      scene.state.stats.maxHp = 1_000_000;
-      scene.state.stats.hp = scene.state.stats.maxHp;
-      scene.state.stats.damage = 2_500;
-      scene.state.stats.moveSpeed = 420;
-
-      if (game.scene.isActive('LevelUpScene')) {
-        const choice = scene.getUpgradeChoices()[0];
-        if (choice) scene.selectUpgrade(choice);
-        game.scene.resume('GameScene');
-        game.scene.stop('LevelUpScene');
-      }
-      if (game.scene.isActive('TreasureScene')) {
-        game.scene.resume('GameScene');
-        game.scene.stop('TreasureScene');
-      }
-      if (scene.nowMs - lastUltimateAt >= 1_000) {
-        lastUltimateAt = scene.nowMs;
-        scene.state.ultimate = scene.state.ultimateMax;
-        scene.requestUltimate();
-      }
-    }, 75);
+    window.__OGU_TEST__?.startRunAutomation();
   });
 
   await page.keyboard.down('d');
@@ -78,12 +40,9 @@ test('completes the accelerated full 15-minute timeline without runtime errors',
   );
   await page.keyboard.up('d');
 
-  const result = await page.evaluate(() => {
-    const scene = window.__OGU_GAME__?.scene.getScene('ResultScene') as unknown as {
-      result: { victory: boolean; elapsedMs: number; kills: number; level: number };
-    };
-    return scene.result;
-  });
+  const result = await page.evaluate(() => window.__OGU_TEST__?.getRunResult());
+  expect(result).toBeDefined();
+  if (!result) return;
   expect(result.victory).toBe(true);
   expect(result.elapsedMs).toBeGreaterThanOrEqual(870_000);
   expect(result.kills).toBeGreaterThan(0);

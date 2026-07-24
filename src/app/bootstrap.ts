@@ -1,9 +1,13 @@
 import Phaser from 'phaser';
 import { registerSW } from 'virtual:pwa-register';
 import { gameConfig } from './gameConfig';
+import { createOguTestBridge, type OguTestBridge } from './OguTestBridge';
 
 declare global {
-  interface Window { __OGU_GAME__?: Phaser.Game }
+  interface Window {
+    __OGU_GAME__?: Phaser.Game;
+    __OGU_TEST__?: OguTestBridge;
+  }
 }
 
 export function bootstrap(): Phaser.Game {
@@ -14,5 +18,8 @@ export function bootstrap(): Phaser.Game {
   });
   const game = new Phaser.Game(gameConfig);
   window.__OGU_GAME__ = game;
+  if (new URLSearchParams(location.search).has('dev')) {
+    window.__OGU_TEST__ = createOguTestBridge(game);
+  }
   return game;
 }
