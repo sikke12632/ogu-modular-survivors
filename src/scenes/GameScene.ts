@@ -70,6 +70,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private saveErrorVisible = false;
   private ended = false;
   private qaLastUltimateAt = 0;
+  private qaFixedStepMs = 0;
   private zones: DamageZone[] = [];
   private meteors: MeteorEffect[] = [];
   private beams: BeamEffect[] = [];
@@ -130,7 +131,9 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   update(_time: number, delta: number): void {
     if (this.ended) return;
     const safeDelta = Math.min(60, delta);
-    const scaledDelta = Math.min(this.maxScaledDelta, safeDelta * this.timeScale);
+    const scaledDelta = this.qaFixedStepMs > 0
+      ? this.qaFixedStepMs
+      : Math.min(this.maxScaledDelta, safeDelta * this.timeScale);
     this.nowMs += safeDelta;
     this.state.elapsedMs += scaledDelta;
     this.inputSystem.update();
@@ -251,6 +254,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   runQaAutomationStep(): void {
     if (!this.devMode || this.ended) return;
+    this.qaFixedStepMs = 20_000;
     this.playerInvulnerableUntil = Number.POSITIVE_INFINITY;
     this.state.stats.maxHp = 1_000_000;
     this.state.stats.hp = this.state.stats.maxHp;
@@ -347,6 +351,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.performanceSystem.reset();
     this.ended = false;
     this.qaLastUltimateAt = 0;
+    this.qaFixedStepMs = 0;
     this.nowMs = 0;
     this.enemyUid = 1;
     this.gridTimerMs = 0;

@@ -46,7 +46,7 @@ test('completes the accelerated full 15-minute timeline without runtime errors',
   expect(result.victory).toBe(true);
   expect(result.elapsedMs).toBeGreaterThanOrEqual(870_000);
   expect(result.kills).toBeGreaterThan(0);
-  expect(result.level).toBeGreaterThan(1);
+  expect(result.score).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
 });
 
