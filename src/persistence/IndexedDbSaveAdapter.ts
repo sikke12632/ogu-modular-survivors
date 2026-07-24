@@ -4,6 +4,7 @@ import type { SaveAdapter } from './SaveAdapter';
 
 const RUN_KEY = 'ogu-modular-active-run';
 const FALLBACK_KEY = `${RUN_KEY}-fallback`;
+const TOMBSTONE_KEY = `${RUN_KEY}-cleared`;
 
 export interface AsyncKeyValueStore {
   get(key: string): Promise<unknown>;
@@ -29,6 +30,7 @@ export class IndexedDbSaveAdapter implements SaveAdapter {
 
   async loadRun(): Promise<RunSnapshot | undefined> {
     await this.queue.catch(() => undefined);
+    if (this.hasTombstone()) return undefined;
     try {
       const snapshot = migrateRunSnapshot(await this.store.get(RUN_KEY));
       if (snapshot) return snapshot;
@@ -51,32 +53,46 @@ export class IndexedDbSaveAdapter implements SaveAdapter {
     const operation = this.queue
       .catch(() => undefined)
       .then(async () => {
-        let indexedDbError: unknown;
+        const errors: unknown[] = [];
+        let primaryDeleted = false;
         try {
           await this.store.delete(RUN_KEY);
+          primaryDeleted = true;
         } catch (error) {
-          indexedDbError = error;
+          errors.push(error);
         }
         const fallbackCleared = this.clearFallback();
-        if (!fallbackCleared) {
-          throw new AggregateError(
-            [indexedDbError, new Error('localStorage clear failed')].filter(Boolean),
-            'Could not clear the active run checkpoint'
-          );
+        if (!fallbackCleared) errors.push(new Error('localStorage clear failed'));
+        if (primaryDeleted && fallbackCleared) {
+          this.clearTombstone();
+          return;
         }
+        if (this.saveTombstone()) return;
+        errors.push(new Error('checkpoint deletion tombstone could not be saved'));
+        throw new AggregateError(errors, 'Could not safely clear the active run checkpoint');
       });
     this.queue = operation;
     return operation;
   }
 
   private async persist(snapshot: RunSnapshot): Promise<void> {
+    let persistenceError: unknown;
     try {
       await this.store.set(RUN_KEY, snapshot);
-      if (!this.clearFallback()) this.saveFallback(snapshot);
+      if (!this.clearFallback() && !this.saveFallback(snapshot)) {
+        throw new Error('The stale localStorage checkpoint could not be replaced');
+      }
     } catch (indexedDbError) {
+      persistenceError = indexedDbError;
       if (!this.saveFallback(snapshot)) {
         throw new AggregateError([indexedDbError], 'IndexedDB and localStorage checkpoint writes failed');
       }
+    }
+    if (!this.clearTombstone()) {
+      throw new AggregateError(
+        [persistenceError, new Error('checkpoint deletion tombstone could not be cleared')].filter(Boolean),
+        'The checkpoint was saved but remains hidden by a deletion marker'
+      );
     }
   }
 
@@ -108,6 +124,36 @@ export class IndexedDbSaveAdapter implements SaveAdapter {
       if (!storage) return true;
       storage.removeItem(FALLBACK_KEY);
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private hasTombstone(): boolean {
+    try {
+      return this.getFallbackStorage()?.getItem(TOMBSTONE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private saveTombstone(): boolean {
+    try {
+      const storage = this.getFallbackStorage();
+      if (!storage) return false;
+      storage.setItem(TOMBSTONE_KEY, '1');
+      return storage.getItem(TOMBSTONE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private clearTombstone(): boolean {
+    try {
+      const storage = this.getFallbackStorage();
+      if (!storage) return true;
+      storage.removeItem(TOMBSTONE_KEY);
+      return storage.getItem(TOMBSTONE_KEY) === null;
     } catch {
       return false;
     }

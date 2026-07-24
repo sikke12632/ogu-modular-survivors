@@ -3,10 +3,9 @@ import { CHARACTERS } from '../../data/characters';
 import { BOSSES, type BossId } from '../../data/enemies';
 import { PASSIVES } from '../../data/passives';
 import { WEAPONS } from '../../data/weapons';
-import type { ActiveMission, MissionServiceState, MissionType } from '../missions/MissionService';
-import type { ComboSystemState } from '../../systems/ComboSystem';
-import type { SpawnSystemState } from '../../systems/SpawnSystem';
+import type { ActiveMission, MissionType } from '../missions/MissionService';
 import type { ActiveBossState, RunState, RunStats } from './RunState';
+import { calculateRunStats } from './RunStatsCalculator';
 
 const DEFAULT_PLAYER_X = 1_280;
 const DEFAULT_PLAYER_Y = 800;
@@ -14,6 +13,8 @@ const CHARACTER_IDS = new Set<string>(CHARACTERS.map((entry) => entry.id));
 const WEAPON_IDS = new Set<string>(WEAPONS.map((entry) => entry.id));
 const PASSIVE_IDS = new Set<string>(PASSIVES.map((entry) => entry.id));
 const BOSS_IDS = new Set<string>(BOSSES.map((entry) => entry.id));
+const WEAPON_MAX_LEVELS = new Map<string, number>(WEAPONS.map((entry) => [entry.id, entry.maxLevel]));
+const PASSIVE_MAX_LEVELS = new Map<string, number>(PASSIVES.map((entry) => [entry.id, entry.maxLevel]));
 const MISSION_TYPES = new Set<MissionType>(['kills', 'survive', 'noHit', 'collect', 'elite']);
 const BOSS_BEHAVIORS = new Set<ActiveBossState['behavior']>(['chase', 'telegraph', 'dash', 'recover']);
 
@@ -24,11 +25,29 @@ export interface ImportantPickupState {
   bossChest: boolean;
 }
 
+export interface SpawnCheckpointState {
+  spawnAccumulator: number;
+  lastWaveId: number;
+  budgetCredit: number;
+  spawnedBosses: string[];
+}
+
+export interface MissionCheckpointState {
+  cooldownMs: number;
+  active?: ActiveMission;
+}
+
+export interface ComboCheckpointState {
+  count: number;
+  remainingMs: number;
+  awardedAssemble: boolean;
+}
+
 export interface RunCheckpoint {
   player: { x: number; y: number };
-  spawn: SpawnSystemState;
-  mission: MissionServiceState;
-  combo: ComboSystemState;
+  spawn: SpawnCheckpointState;
+  mission: MissionCheckpointState;
+  combo: ComboCheckpointState;
   importantPickups: ImportantPickupState[];
   randomState: number;
   timers: {
@@ -39,7 +58,7 @@ export interface RunCheckpoint {
 }
 
 export interface RunSnapshot {
-  schemaVersion: number;
+  schemaVersion: typeof SAVE_SCHEMA_VERSION;
   gameVersion: string;
   savedAt: number;
   runId: string;
@@ -78,7 +97,8 @@ export function createRunSnapshot(runId: string, state: RunState, checkpoint = c
 export function migrateRunSnapshot(value: unknown): RunSnapshot | undefined {
   if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== SAVE_SCHEMA_VERSION)) return undefined;
   if (typeof value.runId !== 'string' || value.runId.length === 0) return undefined;
-  const state = migrateRunState(value.state);
+  const sourceSchemaVersion = value.schemaVersion;
+  const state = migrateRunState(value.state, sourceSchemaVersion);
   if (!state) return undefined;
 
   const checkpoint = value.schemaVersion === 1
@@ -96,7 +116,7 @@ export function migrateRunSnapshot(value: unknown): RunSnapshot | undefined {
   };
 }
 
-function migrateRunState(value: unknown): RunState | undefined {
+function migrateRunState(value: unknown, sourceSchemaVersion: 1 | typeof SAVE_SCHEMA_VERSION): RunState | undefined {
   if (!isRecord(value)
     || !CHARACTER_IDS.has(String(value.characterId))
     || !isFiniteNumber(value.seed)
@@ -114,13 +134,15 @@ function migrateRunState(value: unknown): RunState | undefined {
     || !Array.isArray(value.bossesDefeated)) return undefined;
 
   const weapons = value.weapons.map((weapon) => {
+    const weaponId = isRecord(weapon) ? String(weapon.id) : '';
     if (!isRecord(weapon)
-      || !WEAPON_IDS.has(String(weapon.id))
+      || !WEAPON_IDS.has(weaponId)
       || !isPositiveNumber(weapon.level)
+      || weapon.level > (WEAPON_MAX_LEVELS.get(weaponId) ?? 0)
       || typeof weapon.evolved !== 'boolean'
       || !isFiniteNumber(weapon.cooldownMs)) return undefined;
     return {
-      id: String(weapon.id) as RunState['weapons'][number]['id'],
+      id: weaponId as RunState['weapons'][number]['id'],
       level: Math.floor(weapon.level),
       evolved: weapon.evolved,
       cooldownMs: weapon.cooldownMs
@@ -130,18 +152,24 @@ function migrateRunState(value: unknown): RunState | undefined {
 
   const passives: RunState['passives'] = {};
   for (const [id, level] of Object.entries(value.passives)) {
-    if (!PASSIVE_IDS.has(id) || !isPositiveNumber(level)) return undefined;
+    if (!PASSIVE_IDS.has(id)
+      || !isPositiveNumber(level)
+      || level > (PASSIVE_MAX_LEVELS.get(id) ?? 0)) return undefined;
     passives[id as keyof RunState['passives']] = Math.floor(level);
   }
 
   const bossesDefeated = value.bossesDefeated.map(String);
   if (bossesDefeated.some((id) => !BOSS_IDS.has(id))) return undefined;
-  const activeBoss = value.activeBoss === undefined ? undefined : migrateActiveBoss(value.activeBoss);
+  const activeBoss = value.activeBoss === undefined
+    ? undefined
+    : migrateActiveBoss(value.activeBoss, sourceSchemaVersion);
   if (value.activeBoss !== undefined && !activeBoss) return undefined;
+  const characterId = String(value.characterId) as RunState['characterId'];
+  const stats = calculateRunStats(characterId, passives, value.stats.hp);
 
   return {
     seed: value.seed,
-    characterId: String(value.characterId) as RunState['characterId'],
+    characterId,
     elapsedMs: value.elapsedMs,
     score: value.score,
     kills: Math.floor(value.kills),
@@ -152,13 +180,16 @@ function migrateRunState(value: unknown): RunState | undefined {
     ultimateMax: value.ultimateMax,
     weapons: weapons as RunState['weapons'],
     passives,
-    stats: structuredClone(value.stats) as RunStats,
+    stats,
     bossesDefeated,
     activeBoss
   };
 }
 
-function migrateActiveBoss(value: unknown): ActiveBossState | undefined {
+function migrateActiveBoss(
+  value: unknown,
+  sourceSchemaVersion: 1 | typeof SAVE_SCHEMA_VERSION
+): ActiveBossState | undefined {
   if (!isRecord(value)
     || !BOSS_IDS.has(String(value.id))
     || !isNonNegativeNumber(value.hp)
@@ -176,6 +207,7 @@ function migrateActiveBoss(value: unknown): ActiveBossState | undefined {
     && isFiniteNumber(value.dashY)
     && isNonNegativeNumber(value.slowRemainingMs)
     && isNonNegativeNumber(value.spawnedAdds);
+  if (sourceSchemaVersion === SAVE_SCHEMA_VERSION && !hasBehavior) return undefined;
 
   return {
     id: String(value.id) as BossId,
@@ -222,9 +254,9 @@ function migrateCheckpoint(value: unknown): RunCheckpoint | undefined {
 
   return {
     player: { x: value.player.x, y: value.player.y },
-    spawn: structuredClone(value.spawn) as SpawnSystemState,
-    mission: structuredClone(value.mission) as MissionServiceState,
-    combo: structuredClone(value.combo) as ComboSystemState,
+    spawn: structuredClone(value.spawn) as SpawnCheckpointState,
+    mission: structuredClone(value.mission) as MissionCheckpointState,
+    combo: structuredClone(value.combo) as ComboCheckpointState,
     importantPickups: importantPickups as ImportantPickupState[],
     randomState: value.randomState >>> 0,
     timers: {
@@ -240,10 +272,21 @@ function isRunStats(value: unknown): value is RunStats {
   const keys: Array<keyof RunStats> = ['maxHp', 'hp', 'moveSpeed', 'damage', 'cooldown', 'area', 'duration', 'pickup', 'armor', 'evasion'];
   return keys.every((key) => isFiniteNumber(value[key]))
     && isPositiveNumber(value.maxHp)
-    && isNonNegativeNumber(value.hp);
+    && isNonNegativeNumber(value.hp)
+    && value.hp <= value.maxHp
+    && isPositiveNumber(value.moveSpeed)
+    && isPositiveNumber(value.damage)
+    && isPositiveNumber(value.cooldown)
+    && isPositiveNumber(value.area)
+    && isPositiveNumber(value.duration)
+    && isPositiveNumber(value.pickup)
+    && isNonNegativeNumber(value.armor)
+    && value.armor <= 1
+    && isNonNegativeNumber(value.evasion)
+    && value.evasion <= 1;
 }
 
-function isSpawnState(value: unknown): value is SpawnSystemState {
+function isSpawnState(value: unknown): value is SpawnCheckpointState {
   return isRecord(value)
     && isNonNegativeNumber(value.spawnAccumulator)
     && isNonNegativeNumber(value.lastWaveId)
@@ -252,7 +295,7 @@ function isSpawnState(value: unknown): value is SpawnSystemState {
     && value.spawnedBosses.every((id) => typeof id === 'string' && BOSS_IDS.has(id));
 }
 
-function isMissionState(value: unknown): value is MissionServiceState {
+function isMissionState(value: unknown): value is MissionCheckpointState {
   return isRecord(value)
     && isNonNegativeNumber(value.cooldownMs)
     && (value.active === undefined || isActiveMission(value.active));
@@ -270,7 +313,7 @@ function isActiveMission(value: unknown): value is ActiveMission {
     && typeof value.failed === 'boolean';
 }
 
-function isComboState(value: unknown): value is ComboSystemState {
+function isComboState(value: unknown): value is ComboCheckpointState {
   return isRecord(value)
     && isNonNegativeNumber(value.count)
     && isNonNegativeNumber(value.remainingMs)

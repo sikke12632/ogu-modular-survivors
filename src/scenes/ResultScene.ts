@@ -11,6 +11,10 @@ export class ResultScene extends Phaser.Scene {
 
   init(data: ResultData): void { this.result = data.result; }
 
+  getRunResult(): Readonly<RunResult> {
+    return this.result;
+  }
+
   create(): void {
     const victory = this.result.victory;
     this.cameras.main.setBackgroundColor(victory ? '#061a22' : '#170a16');

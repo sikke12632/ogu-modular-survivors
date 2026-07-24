@@ -42,6 +42,8 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
+`pnpm test:e2e`에는 가속된 15분 전체 타임라인, 모바일 터치 조이스틱, PWA 오프라인 재실행 검증이 포함됩니다. 전체 브라우저 검증은 약 1분 정도 걸립니다.
+
 `?dev=1`을 붙이면 웨이브 시간이 약 15배 빨라지고 공격력이 높아져 전체 흐름을 빠르게 확인할 수 있습니다.
 
 ## 조작

@@ -2,6 +2,7 @@ import { PASSIVES, getPassive, type PassiveId } from '../../data/passives';
 import { WEAPONS, getWeapon, type WeaponId } from '../../data/weapons';
 import type { OwnedWeapon, RunState } from '../run/RunState';
 import { shuffle, type RandomFn } from '../../core/math/random';
+import { applyPassiveStatBonus } from '../run/RunStatsCalculator';
 
 export type UpgradeChoice =
   | { kind: 'weapon'; id: WeaponId; title: string; description: string; icon: string; isNew: boolean }
@@ -51,21 +52,9 @@ export function applyUpgradeChoice(state: RunState, choice: UpgradeChoice): void
   }
   const currentLevel = state.passives[choice.id] ?? 0;
   const nextLevel = Math.min(getPassive(choice.id).maxLevel, currentLevel + 1);
+  if (nextLevel === currentLevel) return;
   state.passives[choice.id] = nextLevel;
-  if (choice.id === 'vitality') {
-    const gain = state.stats.maxHp * 0.15;
-    state.stats.maxHp += gain;
-    state.stats.hp = Math.min(state.stats.maxHp, state.stats.hp + gain);
-  } else if (choice.id === 'power') state.stats.damage *= 1.12;
-  else if (choice.id === 'haste') state.stats.cooldown *= 0.92;
-  else if (choice.id === 'focus') state.stats.area *= 1.12;
-  else if (choice.id === 'duration') state.stats.duration *= 1.12;
-  else if (choice.id === 'stride') state.stats.moveSpeed *= 1.08;
-  else if (choice.id === 'magnet') state.stats.pickup *= 1.22;
-  else if (choice.id === 'guard') {
-    state.stats.armor = Math.min(0.55, state.stats.armor + 0.05);
-    state.stats.evasion = Math.min(0.35, state.stats.evasion + 0.02);
-  }
+  applyPassiveStatBonus(state.stats, choice.id);
 }
 
 export function findEvolutionCandidate(weapons: readonly OwnedWeapon[], passives: Partial<Record<PassiveId, number>>): OwnedWeapon | undefined {

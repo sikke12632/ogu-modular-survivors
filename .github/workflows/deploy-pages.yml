@@ -1,7 +1,10 @@
-name: Deploy to GitHub Pages
+name: QA and deploy
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
   workflow_dispatch:
@@ -16,10 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  qa:
     runs-on: ubuntu-latest
 
     steps:
@@ -51,6 +51,28 @@ jobs:
 
       - name: Run browser smoke tests
         run: pnpm test:e2e
+
+      - name: Preserve verified build
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-dist
+          path: dist
+          retention-days: 1
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.event.repository.private == false
+    needs: qa
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download verified build
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-dist
+          path: dist
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
