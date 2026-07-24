@@ -1,5 +1,7 @@
 # 오구서바이벌: 모듈러 아레나
 
+> **이름 안내:** 이 프로젝트의 “오구”는 2026년 학급 공동체의 애칭에서 유래했습니다. 특정 상용 게임·캐릭터 브랜드와 관련이 없으며, 해당 브랜드의 코드나 에셋을 사용하지 않습니다. 자세한 내용은 [이름 및 비제휴 안내](BRAND_NOTICE.md)를 참고하세요.
+
 기존 `sikke12632/59sur`의 자동 공격, 콤보, 미션, 보물상자, 오구 어셈블 흐름을 제품 설계 기준으로 삼아 새로 만든 Phaser 3.90 + TypeScript 서바이버라이크입니다. 기존 단일 HTML과 이미지 파일은 포함하지 않았습니다.
 
 라이브 버전: [https://sikke12632.github.io/ogu-modular-survivors/](https://sikke12632.github.io/ogu-modular-survivors/)
