@@ -10,7 +10,7 @@ export default defineConfig({
       manifest: {
         name: '오구서바이벌: 모듈러 아레나',
         short_name: '오구서바이벌',
-        description: '15분 데이터 중심 서바이버라이크 프로토타입',
+        description: '5분 또는 10분 동안 학교를 지키는 빠른 서바이버라이크',
         theme_color: '#07111f',
         background_color: '#07111f',
         display: 'standalone',
@@ -21,7 +21,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg}'],
+        clientsClaim: true,
+        globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
         navigateFallback: 'index.html'
       }
     })

@@ -3,7 +3,8 @@ import type { CharacterId } from '../data/characters';
 import type { EnemyDefinition } from '../data/enemies';
 import type { WeaponId } from '../data/weapons';
 
-export const SCHOOL_FONT = '"Arial Rounded MT Bold", "Noto Sans KR", system-ui, sans-serif';
+export const SCHOOL_FONT = '"Noto Sans KR Variable", "Noto Sans KR", system-ui, sans-serif';
+export const SCHOOL_DISPLAY_FONT = '"Black Han Sans", "Noto Sans KR Variable", system-ui, sans-serif';
 
 export const SCHOOL_PALETTE = {
   ink: 0x29384a,

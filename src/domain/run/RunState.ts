@@ -2,6 +2,7 @@ import type { CharacterId } from '../../data/characters';
 import type { PassiveId } from '../../data/passives';
 import type { WeaponId } from '../../data/weapons';
 import type { BossId } from '../../data/enemies';
+import type { RunModeId } from '../../data/runModes';
 
 export interface OwnedWeapon {
   id: WeaponId;
@@ -45,6 +46,7 @@ export interface ActiveBossState {
 export interface RunState {
   seed: number;
   characterId: CharacterId;
+  modeId: RunModeId;
   elapsedMs: number;
   score: number;
   kills: number;

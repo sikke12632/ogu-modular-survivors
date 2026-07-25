@@ -2,6 +2,7 @@ import { GAME_VERSION, SAVE_SCHEMA_VERSION } from '../../app/version';
 import { CHARACTERS } from '../../data/characters';
 import { BOSSES, type BossId } from '../../data/enemies';
 import { PASSIVES } from '../../data/passives';
+import { DEFAULT_RUN_MODE_ID, isRunModeId } from '../../data/runModes';
 import { WEAPONS } from '../../data/weapons';
 import type { ActiveMission, MissionType } from '../missions/MissionService';
 import type { ActiveBossState, RunState, RunStats } from './RunState';
@@ -165,11 +166,13 @@ function migrateRunState(value: unknown, sourceSchemaVersion: 1 | typeof SAVE_SC
     : migrateActiveBoss(value.activeBoss, sourceSchemaVersion);
   if (value.activeBoss !== undefined && !activeBoss) return undefined;
   const characterId = String(value.characterId) as RunState['characterId'];
+  const modeId = isRunModeId(value.modeId) ? value.modeId : DEFAULT_RUN_MODE_ID;
   const stats = calculateRunStats(characterId, passives, value.stats.hp);
 
   return {
     seed: value.seed,
     characterId,
+    modeId,
     elapsedMs: value.elapsedMs,
     score: value.score,
     kills: Math.floor(value.kills),

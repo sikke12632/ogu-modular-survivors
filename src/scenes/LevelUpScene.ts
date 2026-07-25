@@ -3,7 +3,7 @@ import type { UpgradeChoice } from '../domain/progression/UpgradeDraft';
 import { addKenneyPanel, type KenneyTone } from '../ui/KenneyUi';
 import { presentUpgrade } from '../ui/UpgradePresentation';
 import { playVisualEffect, VFX_COLORS } from '../ui/VisualEffects';
-import { SCHOOL_FONT } from '../ui/SchoolArt';
+import { SCHOOL_DISPLAY_FONT, SCHOOL_FONT } from '../ui/SchoolArt';
 import type { GameScene } from './GameScene';
 
 interface LevelUpData { gameScene: GameScene }
@@ -23,7 +23,10 @@ export class LevelUpScene extends Phaser.Scene {
       fontFamily: SCHOOL_FONT, fontSize: '18px', fontStyle: 'bold', color: '#5a3b18', letterSpacing: 4
     }).setOrigin(0.5);
     this.add.text(640, 126, '새 능력을 골라요', {
-      fontFamily: SCHOOL_FONT, fontSize: '32px', fontStyle: 'bold', color: '#4b3217'
+      fontFamily: SCHOOL_DISPLAY_FONT, fontSize: '32px', color: '#4b3217'
+    }).setOrigin(0.5);
+    this.add.text(640, 158, `한 번에 ${this.gameScene.upgradeStepCount}단계 성장`, {
+      fontFamily: SCHOOL_FONT, fontSize: '15px', fontStyle: 'bold', color: '#71552d'
     }).setOrigin(0.5);
     playVisualEffect(this, 'level-up', 640, 112, VFX_COLORS.orange);
 

@@ -4,6 +4,7 @@ import { SpatialHashGrid } from '../../src/core/math/SpatialHashGrid';
 import { mulberry32 } from '../../src/core/math/random';
 import { resolveDamage } from '../../src/domain/combat/DamageResolver';
 import { tickEnemyCooldowns, tryConsumeEnemyCooldown } from '../../src/domain/combat/EnemyCooldowns';
+import { getRunMode } from '../../src/data/runModes';
 import { applyExperience, xpRequiredForLevel } from '../../src/domain/progression/Experience';
 import { applyTreasureReward, decideChestSpawn } from '../../src/domain/progression/TreasureReward';
 import { applyUpgradeChoice, draftUpgrades, findEvolutionCandidate } from '../../src/domain/progression/UpgradeDraft';
@@ -19,7 +20,7 @@ import { IndexedDbSaveAdapter, type AsyncKeyValueStore, type FallbackStorage } f
 
 function makeState(): RunState {
   return {
-    seed: 7, characterId: 'ranger', elapsedMs: 0, score: 0, kills: 0, level: 1, xp: 0,
+    seed: 7, characterId: 'ranger', modeId: 'quick', elapsedMs: 0, score: 0, kills: 0, level: 1, xp: 0,
     pendingLevelUps: 0, ultimate: 0, ultimateMax: 200,
     weapons: [{ id: 'straight_arrow', level: 1, evolved: false, cooldownMs: 0 }],
     passives: {}, bossesDefeated: [],
@@ -52,6 +53,15 @@ describe('core combat and progression', () => {
     expect(findEvolutionCandidate(state.weapons, state.passives)?.id).toBe('straight_arrow');
   });
 
+  it('applies a compressed upgrade as three progression steps', () => {
+    const state = makeState();
+    applyUpgradeChoice(state, { kind: 'weapon', id: 'straight_arrow', title: '', description: '', icon: '', isNew: false }, 3);
+    expect(state.weapons[0]!.level).toBe(4);
+    applyUpgradeChoice(state, { kind: 'passive', id: 'power', title: '', description: '', icon: '', isNew: true }, 3);
+    expect(state.passives.power).toBe(3);
+    expect(state.stats.damage).toBeCloseTo(1.12 ** 3);
+  });
+
   it('keeps normal shots and radial specials on independent cooldowns', () => {
     const cooldowns = { attackCooldownMs: 0, specialCooldownMs: 0, radialCooldownMs: 0 };
     expect(tryConsumeEnemyCooldown(cooldowns, 'attackCooldownMs', 1_200)).toBe(true);
@@ -81,6 +91,21 @@ describe('core combat and progression', () => {
 });
 
 describe('waves, budgets, saves, and spatial lookup', () => {
+  it('compresses the original timeline into dense 5 and 10 minute modes', () => {
+    expect(getRunMode('quick')).toMatchObject({
+      durationMs: 300_000,
+      timelineScale: 3,
+      spawnDensity: 3,
+      upgradeSteps: 3
+    });
+    expect(getRunMode('focus')).toMatchObject({
+      durationMs: 600_000,
+      timelineScale: 1.5,
+      spawnDensity: 1.5,
+      upgradeSteps: 3
+    });
+  });
+
   it('has a stable 20-wave timeline and one-shot boss events', () => {
     const director = new WaveDirector();
     expect(director.getWave(0).id).toBe(1);

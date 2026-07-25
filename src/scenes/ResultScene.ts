@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { getCharacter } from '../data/characters';
+import { getRunMode } from '../data/runModes';
 import type { RunResult } from '../platform/LocalPlatformGateway';
 import { addKenneyButton, addKenneyPanel } from '../ui/KenneyUi';
-import { SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
+import { SCHOOL_DISPLAY_FONT, SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
 
 interface ResultData { result: RunResult }
 
@@ -36,15 +37,17 @@ export class ResultScene extends Phaser.Scene {
       color: '#263849', letterSpacing: 5
     }).setOrigin(0.5);
     this.add.text(640, 138, victory ? '멋지게 살아남았어요!' : '다음 판은 더 강해져요!', {
-      fontFamily: SCHOOL_FONT, fontSize: '32px', fontStyle: 'bold',
+      fontFamily: SCHOOL_DISPLAY_FONT, fontSize: '32px',
       color: '#263849'
     }).setOrigin(0.5);
     const portrait = this.add.sprite(640, 238, `player-${this.result.characterId}`, 0).setDisplaySize(112, 112);
     portrait.play(`player-${this.result.characterId}-walk-down`);
 
     const time = Math.floor(this.result.elapsedMs / 1_000);
+    const mode = getRunMode(this.result.modeId);
     const lines = [
       getCharacter(this.result.characterId).name,
+      `${mode.label} 완료`,
       `점수  ${this.result.score.toLocaleString()}`,
       `처치  ${this.result.kills.toLocaleString()}`,
       `레벨  ${this.result.level}`,
@@ -55,8 +58,8 @@ export class ResultScene extends Phaser.Scene {
       color: '#34495e', align: 'center', lineSpacing: 12
     }).setOrigin(0.5, 0);
 
-    addKenneyButton(this, 480, 622, 286, 64, '같은 캐릭터로 재도전', 'green', () => {
-      this.scene.start('GameScene', { characterId: this.result.characterId });
+    addKenneyButton(this, 480, 622, 286, 64, '같은 모드로 재도전', 'green', () => {
+      this.scene.start('GameScene', { characterId: this.result.characterId, modeId: this.result.modeId });
     }, 17);
     addKenneyButton(this, 800, 622, 286, 64, '메인 메뉴', 'blue', () => {
       this.scene.start('MainMenuScene');

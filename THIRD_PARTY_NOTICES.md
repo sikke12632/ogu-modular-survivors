@@ -19,6 +19,8 @@ listed in [`ASSET_CREDITS.md`](ASSET_CREDITS.md) and
 | poly-decomp.js (bundled by Phaser) | 0.3.0 | MIT | https://github.com/schteppe/poly-decomp.js |
 | idb-keyval | 6.2.2 | Apache-2.0 | https://github.com/jakearchibald/idb-keyval |
 | Workbox | 7.3.0 | MIT | https://github.com/GoogleChrome/workbox |
+| Noto Sans KR Variable | Fontsource 5.3.0 | SIL OFL-1.1 | https://fontsource.org/fonts/noto-sans-kr |
+| Black Han Sans | Fontsource 5.3.0 | SIL OFL-1.1 | https://fontsource.org/fonts/black-han-sans |
 
 Development and build dependencies are not copied into the published site:
 
@@ -30,4 +32,4 @@ Development and build dependencies are not copied into the published site:
 | Vitest | 3.2.4 | MIT | https://github.com/vitest-dev/vitest |
 | Playwright | 1.54.1 | Apache-2.0 | https://github.com/microsoft/playwright |
 
-The installed dependency graph was reviewed before public release. Its declared licenses are permissive (MIT, Apache-2.0, BSD, ISC, BlueOak, CC0, or CC-BY for build-time browser-compatibility data). No GPL, AGPL, proprietary game asset, downloaded font, music, or sound sample is included in the repository or production bundle.
+The installed dependency graph was reviewed before public release. Its declared licenses are permissive (MIT, Apache-2.0, BSD, ISC, BlueOak, CC0, SIL OFL-1.1, or CC-BY for build-time browser-compatibility data). No GPL, AGPL, proprietary game asset, music, or sound sample is included in the repository or production bundle.

@@ -7,7 +7,9 @@ import type { WaveDefinition } from '../data/waves';
 
 export interface SpawnUpdateContext {
   elapsedMs: number;
+  timelineMs?: number;
   deltaMs: number;
+  densityScale?: number;
   activeEnemies: number;
   bossAlive: boolean;
   maxEnemies: number;
@@ -59,12 +61,14 @@ export class SpawnSystem {
   }
 
   update(context: SpawnUpdateContext): WaveDefinition | undefined {
-    const wave = this.director.getWave(context.elapsedMs);
-    this.budget.update(context.deltaMs, wave.budgetPerSec, { maxActive: context.maxEnemies, qualityScale: context.qualityScale });
-    this.spawnAccumulator += (context.deltaMs / 1000) * wave.spawnRate * context.qualityScale;
-    const pressure = 1 + (context.elapsedMs / 900_000) * 3.1;
+    const timelineMs = context.timelineMs ?? context.elapsedMs;
+    const densityScale = Math.max(0.1, context.densityScale ?? 1);
+    const wave = this.director.getWave(timelineMs);
+    this.budget.update(context.deltaMs, wave.budgetPerSec * densityScale, { maxActive: context.maxEnemies, qualityScale: context.qualityScale });
+    this.spawnAccumulator += (context.deltaMs / 1000) * wave.spawnRate * densityScale * context.qualityScale;
+    const pressure = 1 + (timelineMs / 900_000) * 3.1;
     const hpScale = pressure * (context.bossAlive ? 0.84 : 1);
-    const damageScale = 0.9 + (context.elapsedMs / 900_000) * 1.05;
+    const damageScale = 0.9 + (timelineMs / 900_000) * 1.05;
     let active = context.activeEnemies;
     let guard = 0;
     while (this.spawnAccumulator >= 1 && active < context.maxEnemies && guard < 12) {
@@ -79,7 +83,7 @@ export class SpawnSystem {
       active += 1;
       this.spawnAccumulator -= 1;
     }
-    const boss = this.director.takeBossEvent(context.elapsedMs);
+    const boss = this.director.takeBossEvent(timelineMs);
     if (boss) context.spawnBoss(boss.id, pressure, damageScale);
     if (wave.id !== this.lastWaveId) {
       this.lastWaveId = wave.id;

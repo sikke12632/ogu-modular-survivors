@@ -5,6 +5,7 @@ export function makeRunState(): RunState {
   return {
     seed: 7,
     characterId: 'ranger',
+    modeId: 'quick',
     elapsedMs: 0,
     score: 0,
     kills: 0,
