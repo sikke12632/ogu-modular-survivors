@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test';
 async function startDesktopRun(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible();
-  await page.mouse.click(1_056, 348);
+  const bounds = await page.locator('canvas').boundingBox();
+  if (!bounds) throw new Error('Game canvas is not visible');
+  await page.mouse.click(bounds.x + 1_056 / 1_280 * bounds.width, bounds.y + 334 / 720 * bounds.height);
   await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
 }
 
@@ -132,7 +134,9 @@ test('restores a complete v2 checkpoint when continuing a run', async ({ page },
     const scene = window.__OGU_GAME__?.scene.getScene('MainMenuScene') as unknown as { snapshot?: unknown };
     return Boolean(scene.snapshot);
   });
-  await page.mouse.click(1_056, 434);
+  const bounds = await page.locator('canvas').boundingBox();
+  if (!bounds) throw new Error('Game canvas is not visible');
+  await page.mouse.click(bounds.x + 1_056 / 1_280 * bounds.width, bounds.y + 420 / 720 * bounds.height);
   await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
   const restored = await page.evaluate(() => {
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as {

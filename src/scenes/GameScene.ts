@@ -25,6 +25,7 @@ import { InputSystem } from '../systems/InputSystem';
 import { PerformanceSystem } from '../systems/PerformanceSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WeaponSystem, type CombatHost, type ProjectileRequest } from '../systems/WeaponSystem';
+import { playVisualEffect, VFX_COLORS } from '../ui/VisualEffects';
 
 interface GameSceneData { characterId: CharacterId; snapshot?: RunSnapshot }
 interface DamageZone { x: number; y: number; radius: number; damage: number; remainingMs: number; tickMs: number; tickLeftMs: number; color: number }
@@ -189,6 +190,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     });
     enemy.hp -= result.amount;
     this.state.ultimate = Math.min(this.state.ultimateMax, this.state.ultimate + result.amount * 0.11);
+    playVisualEffect(this, 'hit', enemy.x, enemy.y, this.combatEffectColor(color));
+    if (result.critical) playVisualEffect(this, 'critical', enemy.x, enemy.y, VFX_COLORS.lightning);
     if (this.performanceSystem.effectsScale > 0.5 && this.random() < 0.35) this.spawnDamageNumber(enemy.x, enemy.y, result.amount, result.critical ? 0xffe269 : color);
     if (enemy.definition.boss && this.state.activeBoss) {
       this.state.activeBoss.hp = Math.max(0, enemy.hp);
@@ -401,8 +404,9 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const restored = this.snapshot?.checkpoint.player;
     const x = Phaser.Math.Clamp(restored?.x ?? WORLD_WIDTH / 2, 30, WORLD_WIDTH - 30);
     const y = Phaser.Math.Clamp(restored?.y ?? WORLD_HEIGHT / 2, 30, WORLD_HEIGHT - 30);
-    this.player = this.physics.add.sprite(x, y, `player-${character.id}`).setDepth(10);
-    this.player.setCircle(22, 10, 10).setCollideWorldBounds(true);
+    this.player = this.physics.add.sprite(x, y, `player-${character.id}`).setDepth(10).setDisplaySize(64, 64);
+    this.setCircleWorldRadius(this.player, 22);
+    this.player.setCollideWorldBounds(true);
   }
 
   private createCollisions(): void {
@@ -733,8 +737,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const enemy = this.enemies.get(x, y, `enemy-${definition.id}`) as EnemySprite | null;
     if (!enemy) return undefined;
     enemy.activate(this.enemyUid++, definition, hpScale, damageScale, this.random);
-    enemy.setPosition(x, y).setCircle(definition.radius).setDepth(8);
-    enemy.setDisplaySize(definition.radius * 2.4, definition.radius * 2.4);
+    enemy.setPosition(x, y).setDisplaySize(definition.radius * 2.4, definition.radius * 2.4).setDepth(8);
+    // Preserve the world-space hit radius from the former procedural texture sizes.
+    const previousTextureSize = definition.boss ? 144 : definition.elite ? 80 : 56;
+    const previousScale = definition.radius * 2.4 / previousTextureSize;
+    this.setCircleWorldRadius(enemy, definition.radius * previousScale);
     enemy.setCollideWorldBounds(true);
     return enemy;
   }
@@ -766,6 +773,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       else if (boss.state === 'dash') boss.setVelocity(boss.dashX * definition.speed * 7, boss.dashY * definition.speed * 7);
     }
     this.state.activeBoss = this.captureBossState(boss);
+    playVisualEffect(this, 'boss', boss.x, boss.y, VFX_COLORS.fire);
     this.showMessage(`보스 출현 · ${definition.name}`, '#ff738f');
     sfx.play('boss', 0.14);
     this.cameras.main.shake(350, 0.012);
@@ -819,15 +827,18 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     if (!pickup.active) return;
     if (pickup.pickupType === 'chest') {
       const bossChest = pickup.bossChest;
+      playVisualEffect(this, 'pickup', pickup.x, pickup.y, VFX_COLORS.orange);
       pickup.retire();
       this.scene.pause();
       this.scene.launch('TreasureScene', { gameScene: this, bossChest });
       return;
     }
     const result = applyExperience(this.state.level, this.state.xp, pickup.value);
+    playVisualEffect(this, 'pickup', pickup.x, pickup.y, VFX_COLORS.heal);
     this.state.level = result.level;
     this.state.xp = result.xp;
     this.state.pendingLevelUps += result.levelsGained;
+    if (result.levelsGained > 0) playVisualEffect(this, 'level-up', this.player.x, this.player.y, VFX_COLORS.orange);
     pickup.retire();
     const missionResult = this.missionSystem.record('collect');
     if (missionResult === 'completed') this.resolveMission(true);
@@ -846,6 +857,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     if (combo.assemble) this.triggerAssemble('30 COMBO · 오구 어셈블!');
     const missionResult = this.missionSystem.record(wasElite ? 'eliteKill' : 'kill');
     if (missionResult === 'completed') this.resolveMission(true);
+    playVisualEffect(this, 'death', x, y, wasBoss ? VFX_COLORS.fire : VFX_COLORS.orange);
     enemy.retire();
     this.spawnXp(x, y, definition.xp * (wasBoss ? 1.8 : 1));
     this.createPulse(x, y, definition.radius * 2, definition.color);
@@ -894,6 +906,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     }
     this.state.ultimate = 0;
     const character = getCharacter(this.characterId);
+    const ultimateColor = this.characterId === 'guardian'
+      ? VFX_COLORS.heal
+      : this.characterId === 'ranger'
+        ? VFX_COLORS.lightning
+        : VFX_COLORS.ice;
+    playVisualEffect(this, 'ultimate', this.player.x, this.player.y, ultimateColor);
     sfx.play('ultimate', 0.14);
     this.showMessage(character.ultimateName, '#fff072');
     this.cameras.main.shake(350, 0.015 * this.performanceSystem.effectsScale);
@@ -944,6 +962,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private resolveMission(success: boolean): void {
     if (success) {
+      playVisualEffect(this, 'mission', this.player.x, this.player.y, VFX_COLORS.heal);
       this.state.score += 650;
       this.state.stats.hp = Math.min(this.state.stats.maxHp, this.state.stats.hp + this.state.stats.maxHp * 0.16);
       if (this.random() < 0.28) this.triggerAssemble('미션 보상 · 오구 어셈블!');
@@ -960,7 +979,27 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private syncPlayerStats(): void {
     this.state.stats.hp = Math.min(this.state.stats.maxHp, this.state.stats.hp);
-    this.player.setScale(1 + Math.min(0.18, (this.state.stats.maxHp - 100) / 900));
+    const growth = 1 + Math.min(0.18, (this.state.stats.maxHp - 100) / 900);
+    this.player.setDisplaySize(64 * growth, 64 * growth);
+    this.setCircleWorldRadius(this.player, 22 * growth);
+  }
+
+  private setCircleWorldRadius(sprite: Phaser.Physics.Arcade.Sprite, radius: number): void {
+    const scale = Math.max(0.001, Math.abs(sprite.scaleX));
+    const sourceRadius = radius / scale;
+    const offsetX = Math.max(0, (sprite.width - sourceRadius * 2) / 2);
+    const offsetY = Math.max(0, (sprite.height - sourceRadius * 2) / 2);
+    sprite.setCircle(sourceRadius, offsetX, offsetY);
+  }
+
+  private combatEffectColor(color: number): number {
+    const red = color >> 16 & 0xff;
+    const green = color >> 8 & 0xff;
+    const blue = color & 0xff;
+    if (red > 205 && green > 190 && blue > 170) return VFX_COLORS.lightning;
+    if (red > green * 1.15 && red > blue * 1.15) return VFX_COLORS.fire;
+    if (blue >= red || green > red) return VFX_COLORS.ice;
+    return VFX_COLORS.blue;
   }
 
   private steerToward(enemy: EnemySprite, targetX: number, targetY: number, speed: number): void {
