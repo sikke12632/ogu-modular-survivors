@@ -2,6 +2,12 @@ import Phaser from 'phaser';
 import { GAME_VERSION } from '../app/version';
 import { sfx } from '../audio/ProceduralSfx';
 import { CHARACTERS, type CharacterId } from '../data/characters';
+import {
+  DEFAULT_RUN_MODE_ID,
+  getRunMode,
+  RUN_MODES,
+  type RunModeId
+} from '../data/runModes';
 import type { RunSnapshot } from '../domain/run/RunSerializer';
 import { saveAdapter } from '../persistence/IndexedDbSaveAdapter';
 import { platformGateway } from '../platform/LocalPlatformGateway';
@@ -11,11 +17,13 @@ import {
   setKenneyPanelTone,
   type KenneyTone
 } from '../ui/KenneyUi';
-import { SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
+import { SCHOOL_DISPLAY_FONT, SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
 
 export class MainMenuScene extends Phaser.Scene {
   private selectedCharacter: CharacterId = 'guardian';
+  private selectedModeId: RunModeId = DEFAULT_RUN_MODE_ID;
   private cards: Phaser.GameObjects.Container[] = [];
+  private modeButtons: Phaser.GameObjects.Container[] = [];
   private continueButton?: Phaser.GameObjects.Container;
   private snapshot?: RunSnapshot;
   private profileText?: Phaser.GameObjects.Text;
@@ -24,6 +32,7 @@ export class MainMenuScene extends Phaser.Scene {
 
   create(): void {
     this.cards.length = 0;
+    this.modeButtons.length = 0;
     this.continueButton = undefined;
     this.snapshot = undefined;
     this.profileText = undefined;
@@ -35,7 +44,7 @@ export class MainMenuScene extends Phaser.Scene {
       fontFamily: SCHOOL_FONT, fontSize: '16px', color: '#7a442f', letterSpacing: 3
     });
     this.add.text(64, 66, '오구서바이벌', {
-      fontFamily: SCHOOL_FONT, fontSize: '58px', fontStyle: 'bold', color: '#7b3e35',
+      fontFamily: SCHOOL_DISPLAY_FONT, fontSize: '58px', color: '#7b3e35',
       stroke: '#fff7df', strokeThickness: 5
     });
     this.add.text(68, 137, '학교를 지켜라!', {
@@ -54,31 +63,46 @@ export class MainMenuScene extends Phaser.Scene {
     });
     this.updateCardSelection();
 
-    this.makeButton(906, 298, 300, 72, '▶  새 게임 시작', 'green', () => {
+    this.add.text(1_056, 266, '플레이 시간', {
+      fontFamily: SCHOOL_FONT, fontSize: '18px', fontStyle: 'bold', color: '#29384a',
+      stroke: '#fff3cf', strokeThickness: 4
+    }).setOrigin(0.5);
+    RUN_MODES.forEach((mode, index) => {
+      const button = this.makeButton(906 + index * 158, 288, 142, 54, mode.label, 'blue', () => {
+        this.selectedModeId = mode.id;
+        sfx.play('ui');
+        this.updateModeSelection();
+      });
+      button.setData('mode-id', mode.id);
+      this.modeButtons.push(button);
+    });
+    this.updateModeSelection();
+
+    this.makeButton(906, 358, 300, 66, '▶  새 게임 시작', 'green', () => {
       sfx.unlock();
       sfx.play('ui');
       void this.startNewRun();
     });
-    this.continueButton = this.makeButton(906, 388, 300, 64, '이어하기 확인 중…', 'blue', () => {
+    this.continueButton = this.makeButton(906, 440, 300, 56, '이어하기 확인 중…', 'blue', () => {
       if (!this.snapshot) return;
       sfx.unlock();
       sfx.play('ui');
       this.scene.start('GameScene', { characterId: this.snapshot.state.characterId, snapshot: this.snapshot });
     });
     this.setButtonEnabled(this.continueButton, false);
-    this.makeButton(906, 470, 300, 58, '♪  소리 켜기 / 끄기', 'orange', () => {
+    this.makeButton(906, 510, 300, 50, '♪  소리 켜기 / 끄기', 'orange', () => {
       sfx.unlock();
       sfx.enabled = !sfx.enabled;
       localStorage.setItem('ogu-sound', sfx.enabled ? 'on' : 'off');
       this.showToast(sfx.enabled ? '소리를 켰습니다.' : '소리를 껐습니다.');
     });
 
-    addKenneyPanel(this, 1_056, 590, 324, 134, 'blue').setAlpha(0.9);
-    this.profileText = this.add.text(920, 548, '로컬 기록을 불러오는 중…', {
-      fontFamily: SCHOOL_FONT, fontSize: '15px', fontStyle: 'bold', color: '#263849', lineSpacing: 7
+    addKenneyPanel(this, 1_056, 626, 324, 108, 'blue').setAlpha(0.9);
+    this.profileText = this.add.text(920, 588, '로컬 기록을 불러오는 중…', {
+      fontFamily: SCHOOL_FONT, fontSize: '14px', fontStyle: 'bold', color: '#263849', lineSpacing: 4
     });
-    this.add.text(64, 675, `v${GAME_VERSION} · WASD/방향키 이동 · Q 필살기 · ESC 일시정지 · 모바일 가상 조이스틱`, {
-      fontFamily: SCHOOL_FONT, fontSize: '14px', color: '#4d5a62',
+    this.add.text(64, 684, `v${GAME_VERSION} · WASD/방향키 이동 · Q 필살기 · ESC 일시정지 · 모바일 가상 조이스틱`, {
+      fontFamily: SCHOOL_FONT, fontSize: '13px', color: '#4d5a62',
       backgroundColor: '#fff0c5', padding: { x: 10, y: 5 }
     });
 
@@ -95,7 +119,9 @@ export class MainMenuScene extends Phaser.Scene {
     this.snapshot = snapshot;
     if (this.continueButton) {
       const label = this.continueButton.getByName('label') as Phaser.GameObjects.Text;
-      label.setText(snapshot ? `이어하기 · 레벨 ${snapshot.state.level}` : '저장된 판 없음');
+      label.setText(snapshot
+        ? `이어하기 · ${getRunMode(snapshot.state.modeId).shortLabel} · Lv.${snapshot.state.level}`
+        : '저장된 판 없음');
       this.setButtonEnabled(this.continueButton, Boolean(snapshot));
     }
     if (profileResult.status === 'fulfilled') {
@@ -104,7 +130,7 @@ export class MainMenuScene extends Phaser.Scene {
         `최고 점수  ${profile.bestScore.toLocaleString()}`,
         `최장 생존  ${this.formatTime(profile.bestTimeMs)}`,
         `도전 ${profile.totalRuns}회 · 승리 ${profile.victories}회`,
-        '기록은 이 기기에 저장됩니다.'
+        '이 기기에 자동 저장'
       ]);
     } else {
       this.profileText?.setText('로컬 기록을 불러오지 못했습니다.');
@@ -119,7 +145,7 @@ export class MainMenuScene extends Phaser.Scene {
       this.showToast('기존 저장 데이터를 지우지 못했습니다.');
       return;
     }
-    this.scene.start('GameScene', { characterId: this.selectedCharacter });
+    this.scene.start('GameScene', { characterId: this.selectedCharacter, modeId: this.selectedModeId });
   }
 
   private createCharacterCard(id: CharacterId, x: number, y: number): Phaser.GameObjects.Container {
@@ -165,6 +191,17 @@ export class MainMenuScene extends Phaser.Scene {
       setKenneyPanelTone(background, selected ? 'orange' : 'blue', 248, 318);
       (card.getByName('selected') as Phaser.GameObjects.Text).setVisible(selected);
       card.setScale(selected ? 1.035 : 1);
+    }
+  }
+
+  private updateModeSelection(): void {
+    for (const button of this.modeButtons) {
+      const selected = button.getData('mode-id') === this.selectedModeId;
+      const background = button.getByName('background') as Phaser.GameObjects.NineSlice;
+      const label = button.getByName('label') as Phaser.GameObjects.Text;
+      background.setTexture(selected ? 'ui-button-orange' : 'ui-button-blue');
+      label.setColor(selected ? '#fff7df' : '#25354c');
+      button.setScale(selected ? 1.045 : 1);
     }
   }
 
@@ -242,6 +279,7 @@ export class MainMenuScene extends Phaser.Scene {
   private onShutdown(): void {
     window.removeEventListener('ogu:offline-ready', this.onOfflineReady);
     this.cards.length = 0;
+    this.modeButtons.length = 0;
     this.continueButton = undefined;
     this.profileText = undefined;
   }

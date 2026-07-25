@@ -6,6 +6,13 @@ import { SpatialHashGrid } from '../core/math/SpatialHashGrid';
 import { mulberry32, range, type StatefulRandomFn } from '../core/math/random';
 import { getCharacter, type CharacterId } from '../data/characters';
 import { getEnemy, type BossId, type EnemyDefinition } from '../data/enemies';
+import {
+  DEFAULT_RUN_MODE_ID,
+  getRunMode,
+  ORIGINAL_TIMELINE_MS,
+  type RunModeDefinition,
+  type RunModeId
+} from '../data/runModes';
 import { getWeapon } from '../data/weapons';
 import { resolveDamage } from '../domain/combat/DamageResolver';
 import { tickEnemyCooldowns, tryConsumeEnemyCooldown } from '../domain/combat/EnemyCooldowns';
@@ -28,7 +35,7 @@ import { WeaponSystem, type CombatHost, type ProjectileRequest } from '../system
 import { playVisualEffect, VFX_COLORS } from '../ui/VisualEffects';
 import { SCHOOL_FONT, SCHOOL_PALETTE, updateStudentAnimation } from '../ui/SchoolArt';
 
-interface GameSceneData { characterId: CharacterId; snapshot?: RunSnapshot }
+interface GameSceneData { characterId: CharacterId; modeId?: RunModeId; snapshot?: RunSnapshot }
 interface DamageZone { x: number; y: number; radius: number; damage: number; remainingMs: number; tickMs: number; tickLeftMs: number; color: number }
 interface MeteorEffect { x: number; y: number; radius: number; damage: number; remainingMs: number; totalMs: number; color: number }
 interface BeamEffect { x1: number; y1: number; x2: number; y2: number; width: number; remainingMs: number; color: number }
@@ -42,7 +49,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   state!: RunState;
   nowMs = 0;
   runId = '';
-  readonly runDurationMs = 900_000;
+  mode!: RunModeDefinition;
 
   private player!: Phaser.Physics.Arcade.Sprite;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -60,6 +67,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private missionSystem!: MissionService;
   private random!: StatefulRandomFn;
   private characterId!: CharacterId;
+  private modeId: RunModeId = DEFAULT_RUN_MODE_ID;
   private snapshot?: RunSnapshot;
   private enemyUid = 1;
   private gridTimerMs = 0;
@@ -89,6 +97,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   init(data: GameSceneData): void {
     this.characterId = data.snapshot?.state.characterId ?? data.characterId;
+    this.modeId = data.snapshot?.state.modeId ?? data.modeId ?? DEFAULT_RUN_MODE_ID;
+    this.mode = getRunMode(this.modeId);
     this.snapshot = data.snapshot;
   }
 
@@ -126,7 +136,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.events.on(Phaser.Scenes.Events.RESUME, this.onResume, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
-    this.showMessage(this.devMode ? `개발 가속 모드 ×${this.timeScale}` : '15분 생존을 시작합니다', this.devMode ? '#ffcf65' : '#7df8ff');
+    this.showMessage(
+      this.devMode ? `개발 가속 모드 ×${this.timeScale}` : `${this.mode.shortLabel} 생존을 시작합니다`,
+      this.devMode ? '#ffcf65' : '#7df8ff'
+    );
     sfx.unlock();
   }
 
@@ -138,6 +151,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       : Math.min(this.maxScaledDelta, safeDelta * this.timeScale);
     this.nowMs += safeDelta;
     this.state.elapsedMs += scaledDelta;
+    if (this.state.elapsedMs >= this.runDurationMs) {
+      this.state.elapsedMs = this.runDurationMs;
+      void this.endRun(true);
+      return;
+    }
     this.inputSystem.update();
     if (this.inputSystem.consumePause()) {
       this.openPause();
@@ -166,6 +184,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   get playerX(): number { return this.player.x; }
   get playerY(): number { return this.player.y; }
+  get runDurationMs(): number { return this.mode.durationMs; }
+  get upgradeStepCount(): number { return this.mode.upgradeSteps; }
 
   queryEnemies(x: number, y: number, radius: number): EnemySprite[] {
     return this.grid.queryRadius(x, y, radius);
@@ -253,7 +273,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   selectUpgrade(choice: UpgradeChoice): void {
-    applyUpgradeChoice(this.state, choice);
+    applyUpgradeChoice(this.state, choice, this.mode.upgradeSteps);
     this.state.pendingLevelUps = Math.max(0, this.state.pendingLevelUps - 1);
     this.syncPlayerStats();
     sfx.play('level', 0.09);
@@ -275,7 +295,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   runQaAutomationStep(): void {
     if (!this.devMode || this.ended) return;
-    this.qaFixedStepMs = 20_000;
+    this.qaFixedStepMs = 5_000;
     this.playerInvulnerableUntil = Number.POSITIVE_INFINITY;
     this.state.stats.maxHp = 1_000_000;
     this.state.stats.hp = this.state.stats.maxHp;
@@ -344,6 +364,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.state = {
       seed,
       characterId: this.characterId,
+      modeId: this.modeId,
       elapsedMs: 0,
       score: 0,
       kills: 0,
@@ -695,15 +716,20 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private updateRunEvents(deltaMs: number): void {
     this.comboSystem.update(deltaMs);
     const bossAlive = this.getActiveBoss() !== undefined;
+    const timelineMs = Math.min(ORIGINAL_TIMELINE_MS, this.state.elapsedMs * this.mode.timelineScale);
     const changedWave = this.spawnSystem.update({
-      elapsedMs: this.state.elapsedMs, deltaMs, activeEnemies: this.enemies.countActive(true), bossAlive,
+      elapsedMs: this.state.elapsedMs,
+      timelineMs,
+      deltaMs,
+      densityScale: this.mode.spawnDensity,
+      activeEnemies: this.enemies.countActive(true), bossAlive,
       maxEnemies: this.performanceSystem.maxEnemies, qualityScale: this.performanceSystem.qualityScale, random: this.random,
       spawnEnemy: (definition, hpScale, damageScale) => this.spawnEnemy(definition, hpScale, damageScale),
       spawnBoss: (id, hpScale, damageScale) => this.spawnBoss(id, hpScale, damageScale)
     });
     if (changedWave) this.showMessage(`WAVE ${changedWave.id} · ${changedWave.name}`, changedWave.recovery ? '#72f2a2' : '#9beeff');
 
-    const missionResult = this.missionSystem.update(deltaMs, this.state.elapsedMs);
+    const missionResult = this.missionSystem.update(deltaMs, timelineMs);
     if (missionResult === 'started') this.showMessage(`미션 · ${this.missionSystem.active?.description ?? ''}`, '#66eaff');
     else if (missionResult === 'completed') this.resolveMission(true);
     else if (missionResult === 'failed') this.resolveMission(false);
@@ -887,11 +913,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.scene.launch('TreasureScene', { gameScene: this, bossChest });
       return;
     }
-    const result = applyExperience(this.state.level, this.state.xp, pickup.value);
+    const result = applyExperience(this.state.level, this.state.xp, pickup.value * this.mode.xpGainScale);
     playVisualEffect(this, 'pickup', pickup.x, pickup.y, VFX_COLORS.heal);
     this.state.level = result.level;
     this.state.xp = result.xp;
-    this.state.pendingLevelUps += result.levelsGained;
+    if (result.levelsGained > 0) this.state.pendingLevelUps = 1;
     if (result.levelsGained > 0) playVisualEffect(this, 'level-up', this.player.x, this.player.y, VFX_COLORS.orange);
     pickup.retire();
     const missionResult = this.missionSystem.record('collect');
@@ -921,7 +947,6 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.state.bossesDefeated.push(definition.id);
       this.spawnTreasure(true, x, y);
       void this.saveRun();
-      if (definition.id === 'boss_overlord') this.time.delayedCall(800, () => void this.endRun(true));
     }
   }
 
@@ -1132,6 +1157,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.ended = true;
     const result: RunResult = {
       runId: this.runId, characterId: this.characterId, victory, score: Math.floor(this.state.score),
+      modeId: this.modeId,
       kills: this.state.kills, level: this.state.level, elapsedMs: Math.min(this.state.elapsedMs, this.runDurationMs), endedAt: Date.now()
     };
     const completion = await runLifecycleService.completeRun(result);
@@ -1167,7 +1193,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       return;
     }
     this.scene.stop('UIScene');
-    this.scene.restart({ characterId: this.characterId });
+    this.scene.restart({ characterId: this.characterId, modeId: this.modeId });
   }
 
   private captureCheckpoint(): RunCheckpoint {

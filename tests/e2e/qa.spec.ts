@@ -49,13 +49,36 @@ async function startRun(page: Page, path = '/', touch = false): Promise<void> {
   if (touch) {
     await page.evaluate(() => window.__OGU_GAME__?.scene.start('GameScene', { characterId: 'guardian' }));
   } else {
-    const start = await canvasScreenPoint(page, 1_056, 334);
+    const start = await canvasScreenPoint(page, 1_056, 391);
     await page.mouse.click(start.x, start.y);
   }
   await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
 }
 
-test('completes the accelerated full 15-minute timeline without runtime errors', async ({ page }, testInfo) => {
+test('selects the 10-minute mode and loads the self-hosted Korean fonts', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile', 'The menu mode selector is covered once by the desktop project.');
+  await page.goto('/');
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('MainMenuScene')));
+  const focusMode = await canvasScreenPoint(page, 1_135, 315);
+  await page.mouse.click(focusMode.x, focusMode.y);
+  const start = await canvasScreenPoint(page, 1_056, 391);
+  await page.mouse.click(start.x, start.y);
+  await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
+
+  const mode = await page.evaluate(() => {
+    const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as {
+      state: { modeId: string };
+      runDurationMs: number;
+    };
+    return { modeId: scene.state.modeId, durationMs: scene.runDurationMs };
+  });
+  expect(mode).toEqual({ modeId: 'focus', durationMs: 600_000 });
+  expect(await page.evaluate(() => document.fonts.check('700 18px "Noto Sans KR Variable"', '오구서바이벌'))).toBe(true);
+  expect(await page.evaluate(() => document.fonts.check('400 32px "Black Han Sans"', '새 능력을 골라요'))).toBe(true);
+});
+
+test('completes the accelerated full 5-minute timeline without runtime errors', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'The full timeline is covered once by the desktop project.');
   test.setTimeout(100_000);
   const pageErrors: string[] = [];
@@ -78,7 +101,8 @@ test('completes the accelerated full 15-minute timeline without runtime errors',
   expect(result).toBeDefined();
   if (!result) return;
   expect(result.victory).toBe(true);
-  expect(result.elapsedMs).toBeGreaterThanOrEqual(870_000);
+  expect(result.modeId).toBe('quick');
+  expect(result.elapsedMs).toBe(300_000);
   expect(result.kills).toBeGreaterThan(0);
   expect(result.score).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);

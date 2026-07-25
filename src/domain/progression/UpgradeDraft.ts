@@ -39,22 +39,30 @@ export function draftUpgrades(state: RunState, random: RandomFn, count = 3): Upg
   return choices;
 }
 
-export function applyUpgradeChoice(state: RunState, choice: UpgradeChoice): void {
+export function applyUpgradeChoice(state: RunState, choice: UpgradeChoice, steps = 1): void {
+  const safeSteps = Math.max(1, Math.floor(steps));
   if (choice.kind === 'weapon') {
     const owned = state.weapons.find((weapon) => weapon.id === choice.id);
-    if (owned) owned.level = Math.min(getWeapon(choice.id).maxLevel, owned.level + 1);
-    else state.weapons.push({ id: choice.id, level: 1, evolved: false, cooldownMs: 0 });
+    if (owned) owned.level = Math.min(getWeapon(choice.id).maxLevel, owned.level + safeSteps);
+    else state.weapons.push({
+      id: choice.id,
+      level: Math.min(getWeapon(choice.id).maxLevel, safeSteps),
+      evolved: false,
+      cooldownMs: 0
+    });
     return;
   }
   if (choice.kind === 'heal') {
-    state.stats.hp = Math.min(state.stats.maxHp, state.stats.hp + state.stats.maxHp * 0.35);
+    state.stats.hp = Math.min(state.stats.maxHp, state.stats.hp + state.stats.maxHp * 0.35 * safeSteps);
     return;
   }
   const currentLevel = state.passives[choice.id] ?? 0;
-  const nextLevel = Math.min(getPassive(choice.id).maxLevel, currentLevel + 1);
+  const nextLevel = Math.min(getPassive(choice.id).maxLevel, currentLevel + safeSteps);
   if (nextLevel === currentLevel) return;
   state.passives[choice.id] = nextLevel;
-  applyPassiveStatBonus(state.stats, choice.id);
+  for (let level = currentLevel; level < nextLevel; level += 1) {
+    applyPassiveStatBonus(state.stats, choice.id);
+  }
 }
 
 export function findEvolutionCandidate(weapons: readonly OwnedWeapon[], passives: Partial<Record<PassiveId, number>>): OwnedWeapon | undefined {

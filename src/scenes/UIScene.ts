@@ -68,7 +68,7 @@ export class UIScene extends Phaser.Scene {
     this.levelText.setText(`레벨  ${hud.level}`);
     this.hpBar.setValue(hud.hp / hud.maxHp);
 
-    const remaining = Math.max(0, 900_000 - hud.elapsedMs);
+    const remaining = Math.max(0, this.gameScene.runDurationMs - hud.elapsedMs);
     const totalSeconds = Math.ceil(remaining / 1_000);
     this.timerText.setText(`${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`);
     this.scoreText.setText(`점수  ${hud.score.toLocaleString()}`);

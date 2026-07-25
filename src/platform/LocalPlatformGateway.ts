@@ -1,9 +1,11 @@
 import { get, set } from 'idb-keyval';
 import type { CharacterId } from '../data/characters';
+import type { RunModeId } from '../data/runModes';
 
 export interface RunResult {
   runId: string;
   characterId: CharacterId;
+  modeId: RunModeId;
   victory: boolean;
   score: number;
   kills: number;
