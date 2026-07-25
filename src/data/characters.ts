@@ -23,25 +23,25 @@ export interface CharacterDefinition {
 
 export const CHARACTERS: readonly CharacterDefinition[] = [
   {
-    id: 'guardian', name: '수호자', subtitle: '버티며 밀어붙이는 선봉',
-    description: '단단하게 버티는 선봉',
+    id: 'guardian', name: '오구 반장', subtitle: '든든하게 앞을 지켜요',
+    description: '지우개 방어 전문가',
     color: 0x33f2ff, accent: 0x147d9c, startingWeapon: 'orbit_blade', startingPassive: 'vitality',
     maxHp: 150, moveSpeed: 210, damageBonus: 1, cooldownBonus: 1, areaBonus: 1.2, armor: 0.12,
-    ultimateName: '수호 폭발'
+    ultimateName: '친구들아, 모여!'
   },
   {
-    id: 'ranger', name: '사수', subtitle: '빠른 탄막을 만드는 추적자',
-    description: '빠르게 연사하는 사수',
+    id: 'ranger', name: '체육부', subtitle: '누구보다 빠르게 달려요',
+    description: '연필 속사 전문가',
     color: 0x6dff78, accent: 0x268f4d, startingWeapon: 'straight_arrow', startingPassive: 'haste',
     maxHp: 110, moveSpeed: 245, damageBonus: 1, cooldownBonus: 0.84, areaBonus: 1, armor: 0.03,
-    ultimateName: '별빛 일제사격'
+    ultimateName: '연필비가 내린다!'
   },
   {
-    id: 'mystic', name: '술사', subtitle: '전장을 접어 제어하는 연구자',
-    description: '넓게 제어하는 술사',
+    id: 'mystic', name: '과학부', subtitle: '똑똑하게 넓게 막아요',
+    description: '분필 실험 전문가',
     color: 0xb26cff, accent: 0x6135a7, startingWeapon: 'homing_orb', startingPassive: 'focus',
     maxHp: 100, moveSpeed: 200, damageBonus: 1.08, cooldownBonus: 1, areaBonus: 1.25, armor: 0.02,
-    ultimateName: '중력 붕괴'
+    ultimateName: '과학실 대폭발!'
   }
 ] as const;
 

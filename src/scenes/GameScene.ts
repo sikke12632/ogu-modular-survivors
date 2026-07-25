@@ -26,6 +26,7 @@ import { PerformanceSystem } from '../systems/PerformanceSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WeaponSystem, type CombatHost, type ProjectileRequest } from '../systems/WeaponSystem';
 import { playVisualEffect, VFX_COLORS } from '../ui/VisualEffects';
+import { SCHOOL_FONT, SCHOOL_PALETTE, updateStudentAnimation } from '../ui/SchoolArt';
 
 interface GameSceneData { characterId: CharacterId; snapshot?: RunSnapshot }
 interface DamageZone { x: number; y: number; radius: number; damage: number; remainingMs: number; tickMs: number; tickLeftMs: number; color: number }
@@ -192,6 +193,23 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.state.ultimate = Math.min(this.state.ultimateMax, this.state.ultimate + result.amount * 0.11);
     playVisualEffect(this, 'hit', enemy.x, enemy.y, this.combatEffectColor(color));
     if (result.critical) playVisualEffect(this, 'critical', enemy.x, enemy.y, VFX_COLORS.lightning);
+    const scaleX = enemy.scaleX;
+    const scaleY = enemy.scaleY;
+    enemy.setTintFill(0xffffff);
+    this.tweens.killTweensOf(enemy);
+    this.tweens.add({
+      targets: enemy,
+      scaleX: scaleX * 1.12,
+      scaleY: scaleY * 0.86,
+      duration: 55,
+      yoyo: true,
+      onComplete: () => {
+        if (enemy.active) {
+          enemy.setScale(scaleX, scaleY);
+          enemy.clearTint();
+        }
+      }
+    });
     if (this.performanceSystem.effectsScale > 0.5 && this.random() < 0.35) this.spawnDamageNumber(enemy.x, enemy.y, result.amount, result.critical ? 0xffe269 : color);
     if (enemy.definition.boss && this.state.activeBoss) {
       this.state.activeBoss.hp = Math.max(0, enemy.hp);
@@ -374,20 +392,46 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private drawArena(): void {
-    const background = this.add.graphics();
-    background.fillStyle(0x07111f, 1).fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    background.lineStyle(1, 0x244867, 0.28);
-    for (let x = 0; x <= WORLD_WIDTH; x += 96) background.lineBetween(x, 0, x, WORLD_HEIGHT);
-    for (let y = 0; y <= WORLD_HEIGHT; y += 96) background.lineBetween(0, y, WORLD_WIDTH, y);
-    const landmarks = [
-      { x: 330, y: 280, color: 0x24d8ff }, { x: WORLD_WIDTH - 330, y: 280, color: 0xff66c6 },
-      { x: 330, y: WORLD_HEIGHT - 280, color: 0x76ff7e }, { x: WORLD_WIDTH - 330, y: WORLD_HEIGHT - 280, color: 0x9b72ff }
-    ];
-    for (const mark of landmarks) {
-      background.fillStyle(mark.color, 0.05).fillCircle(mark.x, mark.y, 170);
-      background.lineStyle(5, mark.color, 0.26).strokeCircle(mark.x, mark.y, 110).lineStyle(2, mark.color, 0.16).strokeCircle(mark.x, mark.y, 148);
+    this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 'school-ground-speckle')
+      .setTileScale(4)
+      .setTint(0xeab172)
+      .setDepth(-4);
+    const background = this.add.graphics().setDepth(-3);
+    background.fillStyle(SCHOOL_PALETTE.cream, 0.2).fillRect(0, 0, WORLD_WIDTH, 620);
+    background.lineStyle(8, SCHOOL_PALETTE.chalk, 0.78).strokeRoundedRect(670, 570, 1_220, 760, 30);
+    background.lineStyle(5, SCHOOL_PALETTE.blue, 0.58)
+      .lineBetween(1_280, 570, 1_280, 1_330)
+      .strokeCircle(1_280, 950, 128);
+    background.lineStyle(5, SCHOOL_PALETTE.green, 0.55)
+      .strokeRoundedRect(120, 980, 390, 410, 24)
+      .strokeRoundedRect(2_050, 980, 390, 410, 24);
+    for (let index = 0; index < 6; index += 1) {
+      const y = 690 + index * 56;
+      background.lineStyle(4, index % 2 ? SCHOOL_PALETTE.blue : SCHOOL_PALETTE.chalk, 0.62)
+        .strokeRect(540, y, 58, 48);
     }
-    background.lineStyle(10, 0x3c698b, 0.55).strokeRect(5, 5, WORLD_WIDTH - 10, WORLD_HEIGHT - 10);
+    background.lineStyle(12, 0xa95d42, 0.82).strokeRect(6, 6, WORLD_WIDTH - 12, WORLD_HEIGHT - 12);
+
+    this.add.image(WORLD_WIDTH / 2, 610, 'school-building')
+      .setDisplaySize(430, 330)
+      .setDepth(-2);
+    this.add.rectangle(WORLD_WIDTH / 2, 580, 230, 48, SCHOOL_PALETTE.cream, 0.98)
+      .setStrokeStyle(5, 0x7b3e35)
+      .setDepth(-1.5);
+    this.add.text(WORLD_WIDTH / 2, 580, '오 구 초 등 학 교', {
+      fontFamily: SCHOOL_FONT,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#7b3e35'
+    }).setOrigin(0.5).setDepth(-1.4);
+    for (const decoration of [
+      { key: 'school-bench', x: 720, y: 535 },
+      { key: 'school-bench', x: 1_840, y: 535 },
+      { key: 'school-notice-board', x: 430, y: 350 },
+      { key: 'school-notice-board', x: 2_130, y: 350 }
+    ]) {
+      this.add.image(decoration.x, decoration.y, decoration.key).setScale(4).setDepth(-1);
+    }
     this.persistentGraphics = this.add.graphics().setDepth(4);
     this.effectGraphics = this.add.graphics().setDepth(20);
   }
@@ -404,7 +448,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const restored = this.snapshot?.checkpoint.player;
     const x = Phaser.Math.Clamp(restored?.x ?? WORLD_WIDTH / 2, 30, WORLD_WIDTH - 30);
     const y = Phaser.Math.Clamp(restored?.y ?? WORLD_HEIGHT / 2, 30, WORLD_HEIGHT - 30);
-    this.player = this.physics.add.sprite(x, y, `player-${character.id}`).setDepth(10).setDisplaySize(64, 64);
+    this.player = this.physics.add.sprite(x, y, `player-${character.id}`, 0).setDepth(10).setDisplaySize(72, 72);
+    this.player.setData('student-direction', 'down');
     this.setCircleWorldRadius(this.player, 22);
     this.player.setCollideWorldBounds(true);
   }
@@ -419,7 +464,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private updateMovement(): void {
     const movement = this.inputSystem.movement;
     this.player.setVelocity(movement.x * this.state.stats.moveSpeed, movement.y * this.state.stats.moveSpeed);
-    if (movement.x !== 0) this.player.setFlipX(movement.x < 0);
+    updateStudentAnimation(this.player, movement.x, movement.y);
+    this.player.setAngle(
+      Math.abs(movement.x) + Math.abs(movement.y) > 0.01
+        ? 0
+        : Math.sin(this.nowMs / 320) * 0.8
+    );
     if (this.inputSystem.consumeUltimate()) this.useUltimate();
     this.player.setAlpha(this.nowMs < this.playerInvulnerableUntil && Math.floor(this.nowMs / 70) % 2 === 0 ? 0.35 : 1);
   }
@@ -451,6 +501,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
         projectile.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
         if (Phaser.Math.Distance.Between(projectile.x, projectile.y, this.player.x, this.player.y) < 35) projectile.retire();
       }
+      if (projectile.body) projectile.setRotation(Math.atan2(projectile.body.velocity.y, projectile.body.velocity.x));
       if (projectile.lifeMs <= 0 || projectile.x < -50 || projectile.y < -50 || projectile.x > WORLD_WIDTH + 50 || projectile.y > WORLD_HEIGHT + 50) projectile.retire();
     }
     for (const projectile of this.enemyProjectiles.getChildren() as ProjectileSprite[]) {
@@ -502,6 +553,9 @@ export class GameScene extends Phaser.Scene implements CombatHost {
         enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * 0.08);
         enemy.specialCooldownMs = 3_000;
         this.createPulse(enemy.x, enemy.y, 90, definition.color);
+      }
+      if (enemy.state !== 'dash') {
+        enemy.setAngle(Math.sin(this.nowMs / 190 + enemy.visualPhase) * (definition.boss ? 1.4 : 3));
       }
       enemy.setDepth(8 + enemy.y / WORLD_HEIGHT);
     }
@@ -803,7 +857,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private onProjectileHit(projectile: ProjectileSprite, enemy: EnemySprite): void {
     if (!projectile.active || !enemy.active || projectile.hitIds.has(enemy.uid)) return;
     projectile.hitIds.add(enemy.uid);
-    this.damageEnemy(enemy, projectile.damage, projectile.tintTopLeft || 0xffffff);
+    this.damageEnemy(enemy, projectile.damage, projectile.effectColor);
     sfx.play('hit', 0.025);
     if (projectile.pierce <= 0 && projectile.kind !== 'boomerang') projectile.retire();
     else projectile.pierce -= 1;
@@ -858,6 +912,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const missionResult = this.missionSystem.record(wasElite ? 'eliteKill' : 'kill');
     if (missionResult === 'completed') this.resolveMission(true);
     playVisualEffect(this, 'death', x, y, wasBoss ? VFX_COLORS.fire : VFX_COLORS.orange);
+    this.playEnemyDeathAnimation(enemy);
     enemy.retire();
     this.spawnXp(x, y, definition.xp * (wasBoss ? 1.8 : 1));
     this.createPulse(x, y, definition.radius * 2, definition.color);
@@ -868,6 +923,24 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       void this.saveRun();
       if (definition.id === 'boss_overlord') this.time.delayedCall(800, () => void this.endRun(true));
     }
+  }
+
+  private playEnemyDeathAnimation(enemy: EnemySprite): void {
+    const echo = this.add.image(enemy.x, enemy.y, enemy.texture.key, enemy.frame.name)
+      .setDisplaySize(enemy.displayWidth, enemy.displayHeight)
+      .setAngle(enemy.angle)
+      .setDepth(enemy.depth + 0.5);
+    this.tweens.add({
+      targets: echo,
+      y: echo.y - 18,
+      angle: echo.angle + (enemy.uid % 2 === 0 ? 18 : -18),
+      scaleX: echo.scaleX * 1.18,
+      scaleY: echo.scaleY * 0.72,
+      alpha: 0,
+      duration: 210,
+      ease: 'Quad.Out',
+      onComplete: () => echo.destroy()
+    });
   }
 
   private spawnXp(x: number, y: number, value: number): void {
@@ -894,6 +967,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.playerInvulnerableUntil = this.nowMs + 680;
     this.cameras.main.shake(110, 0.008 * this.performanceSystem.effectsScale);
     this.createPulse(this.player.x, this.player.y, 55, 0xff4d68);
+    this.player.setTintFill(0xffffff);
+    this.time.delayedCall(70, () => {
+      if (this.player.active) this.player.clearTint();
+    });
     sfx.play('hurt', 0.1);
     const missionResult = this.missionSystem.record('damaged');
     if (missionResult === 'failed') this.resolveMission(false);
@@ -980,7 +1057,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private syncPlayerStats(): void {
     this.state.stats.hp = Math.min(this.state.stats.maxHp, this.state.stats.hp);
     const growth = 1 + Math.min(0.18, (this.state.stats.maxHp - 100) / 900);
-    this.player.setDisplaySize(64 * growth, 64 * growth);
+    this.player.setDisplaySize(72 * growth, 72 * growth);
     this.setCircleWorldRadius(this.player, 22 * growth);
   }
 
@@ -1026,7 +1103,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private spawnDamageNumber(x: number, y: number, amount: number, color: number): void {
-    const text = this.add.text(x, y, `${Math.round(amount)}`, { fontFamily: 'system-ui', fontSize: '15px', fontStyle: 'bold', color: `#${color.toString(16).padStart(6, '0')}`, stroke: '#07111f', strokeThickness: 3 }).setOrigin(0.5).setDepth(40);
+    const text = this.add.text(x, y, `${Math.round(amount)}`, { fontFamily: SCHOOL_FONT, fontSize: '15px', fontStyle: 'bold', color: `#${color.toString(16).padStart(6, '0')}`, stroke: '#29384a', strokeThickness: 3 }).setOrigin(0.5).setDepth(40);
     this.tweens.add({ targets: text, y: y - 28, alpha: 0, duration: 420, onComplete: () => text.destroy() });
   }
 

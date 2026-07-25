@@ -2,7 +2,7 @@
 
 The image files in this directory are selected and renamed files from:
 
-- **UI Pack 2.0** — https://kenney.nl/assets/ui-pack
+- **UI Pack - Pixel Adventure** — https://kenney.nl/assets/ui-pack-pixel-adventure
 - **Tiny Dungeon 1.0** — https://kenney.nl/assets/tiny-dungeon
 - **Particle Pack 1.1** — https://kenney.nl/assets/particle-pack
 

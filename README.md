@@ -9,13 +9,13 @@
 ## 현재 구현
 
 - 15분, 45초 단위 20개 웨이브
-- 수호자·사수·술사 3개 캐릭터
+- 오구 반장·체육부·과학부 3개 캐릭터
 - 서로 다른 패턴의 무기 12종과 보스 상자 진화
 - 보조 능력 8종
 - 일반 적 12종, 엘리트 4종, 상태 기반 보스 3종
 - 콤보, 30콤보 오구 어셈블, 무작위 미션, 멀리 등장하는 보물상자
 - 키보드·마우스/터치, 가상 조이스틱, 반응형 HUD
-- Kenney CC0 기반의 파랑·초록·주황 UI와 통일된 픽셀 스프라이트
+- MetroCity 학생·Tiny Dungeon 몬스터·Kenney UI를 맞춘 밝은 학교 픽셀 테마
 - 적중·크리티컬·사망·레벨업·보스·필살기·획득·미션 완료 이펙트
 - 숫자 대신 효과를 바로 읽는 업그레이드 카드와 6요소 집중 HUD
 - v2 체크포인트 자동 저장/이어하기, IndexedDB 장애 대체 저장과 로컬 최고기록
@@ -63,9 +63,11 @@ pnpm test:e2e
 v1.0은 게임 규칙과 밸런스를 유지한 비주얼 전용 업데이트입니다.
 
 - `src/ui/KenneyUi.ts`: 버튼·패널·바 공통 컴포넌트
+- `src/ui/SchoolArt.ts`: 학생 애니메이션·에셋 매핑·학교용품 공격 비주얼
 - `src/ui/UpgradePresentation.ts`: 숫자 없는 업그레이드 표시 문구
 - `src/ui/VisualEffects.ts`: 상황별 이펙트와 색상 규칙
-- `public/assets/kenney/`: 실제 사용하는 CC0 이미지와 라이선스
+- `public/assets/school/`: MetroCity·Tiny Dungeon·Pixel Adventure CC0 선별 에셋
+- `public/assets/kenney/`: 픽업·상자·이펙트 CC0 이미지와 라이선스
 
 캐릭터나 적의 외형을 바꿀 때는 `player-{characterId}`, `enemy-{enemyId}` 텍스처 키를 유지하면 전투 코어를 건드릴 필요가 없습니다.
 

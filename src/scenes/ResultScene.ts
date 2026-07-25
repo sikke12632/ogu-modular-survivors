@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getCharacter } from '../data/characters';
 import type { RunResult } from '../platform/LocalPlatformGateway';
 import { addKenneyButton, addKenneyPanel } from '../ui/KenneyUi';
+import { SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
 
 interface ResultData { result: RunResult }
 
@@ -18,22 +19,28 @@ export class ResultScene extends Phaser.Scene {
 
   create(): void {
     const victory = this.result.victory;
-    this.cameras.main.setBackgroundColor('#07162c');
+    this.cameras.main.setBackgroundColor('#78c7e3');
+    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-speckle')
+      .setTileScale(3.5)
+      .setTint(0xf1bd80)
+      .setDepth(-2);
     const graphics = this.add.graphics();
-    graphics.lineStyle(1, victory ? 0x55cfff : 0xffa13d, 0.2);
-    for (let x = 0; x < 1_280; x += 64) graphics.lineBetween(x, 0, x, 720);
-    for (let y = 0; y < 720; y += 64) graphics.lineBetween(0, y, 1_280, y);
+    graphics.setDepth(-1);
+    graphics.fillStyle(SCHOOL_PALETTE.cloud, 0.82)
+      .fillCircle(120, 80, 30).fillCircle(158, 66, 44).fillCircle(198, 80, 28);
+    graphics.lineStyle(5, SCHOOL_PALETTE.chalk, 0.65).strokeRoundedRect(34, 324, 1_212, 354, 20);
 
     addKenneyPanel(this, 640, 340, 660, 530, victory ? 'green' : 'orange');
     this.add.text(640, 92, victory ? 'ARENA CLEARED' : 'RUN ENDED', {
-      fontFamily: 'system-ui', fontSize: '20px', fontStyle: 'bold',
+      fontFamily: SCHOOL_FONT, fontSize: '20px', fontStyle: 'bold',
       color: '#263849', letterSpacing: 5
     }).setOrigin(0.5);
     this.add.text(640, 138, victory ? '멋지게 살아남았어요!' : '다음 판은 더 강해져요!', {
-      fontFamily: 'system-ui', fontSize: '32px', fontStyle: 'bold',
+      fontFamily: SCHOOL_FONT, fontSize: '32px', fontStyle: 'bold',
       color: '#263849'
     }).setOrigin(0.5);
-    this.add.image(640, 238, `player-${this.result.characterId}`).setDisplaySize(104, 104);
+    const portrait = this.add.sprite(640, 238, `player-${this.result.characterId}`, 0).setDisplaySize(112, 112);
+    portrait.play(`player-${this.result.characterId}-walk-down`);
 
     const time = Math.floor(this.result.elapsedMs / 1_000);
     const lines = [
@@ -44,7 +51,7 @@ export class ResultScene extends Phaser.Scene {
       `생존  ${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`
     ];
     this.add.text(640, 310, lines.join('\n'), {
-      fontFamily: 'system-ui', fontSize: '21px', fontStyle: 'bold',
+      fontFamily: SCHOOL_FONT, fontSize: '21px', fontStyle: 'bold',
       color: '#34495e', align: 'center', lineSpacing: 12
     }).setOrigin(0.5, 0);
 

@@ -12,6 +12,7 @@ export class ProjectileSprite extends Phaser.Physics.Arcade.Sprite {
   sourceY = 0;
   targetUid?: number;
   returnAt = 0;
+  effectColor = 0xffffff;
   hitIds = new Set<number>();
 
   constructor(scene: Phaser.Scene, x: number, y: number, texture = 'projectile') {
@@ -21,9 +22,13 @@ export class ProjectileSprite extends Phaser.Physics.Arcade.Sprite {
   activate(config: {
     x: number; y: number; angle: number; speed: number; damage: number; pierce: number;
     lifeMs: number; color: number; radius: number; kind?: ProjectileKind; targetUid?: number;
+    visualKey?: string;
   }): this {
     this.enableBody(true, config.x, config.y, true, true);
-    this.setTexture('projectile').setTint(config.color).setDisplaySize(config.radius * 2, config.radius * 2);
+    this.setTexture(config.visualKey ?? 'school-pencil')
+      .clearTint()
+      .setRotation(config.angle)
+      .setDisplaySize(config.radius * 2.8, config.radius * 2.8);
     this.setCircle(7).setVelocity(Math.cos(config.angle) * config.speed, Math.sin(config.angle) * config.speed);
     this.damage = config.damage;
     this.pierce = config.pierce;
@@ -34,6 +39,7 @@ export class ProjectileSprite extends Phaser.Physics.Arcade.Sprite {
     this.sourceY = config.y;
     this.targetUid = config.targetUid;
     this.returnAt = config.lifeMs * 0.5;
+    this.effectColor = config.color;
     this.hitIds.clear();
     return this;
   }

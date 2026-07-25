@@ -25,7 +25,7 @@ describe('visual remaster upgrade copy', () => {
     };
 
     const presentation = presentUpgrade(choice);
-    expect(presentation.title).toBe('공격력 증가');
+    expect(presentation.title).toBe('⚔ 공격 강해짐');
     expect(presentation.description).toBe('효과가 더 강해짐');
     expect(`${presentation.title}${presentation.description}`).not.toMatch(/[0-9%+-]/);
   });
@@ -48,7 +48,7 @@ describe('visual remaster upgrade copy', () => {
       isNew: false
     });
 
-    expect(weapon).toMatchObject({ title: '관통 창', description: '무기가 더 강해짐' });
+    expect(weapon).toMatchObject({ title: '긴 자', description: '무기가 더 강해짐' });
     expect(heal).toMatchObject({ title: '체력 회복', description: '체력을 크게 채움' });
     expect(`${weapon.title}${weapon.description}${heal.title}${heal.description}`).not.toMatch(/[0-9%+-]/);
   });

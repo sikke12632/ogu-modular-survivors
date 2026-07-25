@@ -17,6 +17,7 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
   dashX = 0;
   dashY = 0;
   spawnedAdds = 0;
+  visualPhase = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, texture = 'pixel') {
     super(scene, x, y, texture);
@@ -36,7 +37,14 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
     this.phase = 1;
     this.slowUntil = 0;
     this.spawnedAdds = 0;
-    this.setTexture(`enemy-${definition.id}`).setActive(true).setVisible(true).setAlpha(1).setScale(1);
+    this.visualPhase = uid * 0.73;
+    this.setTexture(`enemy-${definition.id}`)
+      .setActive(true)
+      .setVisible(true)
+      .setAlpha(1)
+      .setAngle(0)
+      .clearTint()
+      .setScale(1);
     this.setDataEnabled();
     return this;
   }
