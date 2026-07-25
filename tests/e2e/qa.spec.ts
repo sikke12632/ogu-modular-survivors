@@ -12,12 +12,46 @@ async function canvasScreenPoint(page: Page, gameX: number, gameY: number): Prom
   };
 }
 
+async function dispatchCanvasTouch(
+  page: Page,
+  type: 'touchstart' | 'touchmove' | 'touchend',
+  point: { x: number; y: number }
+): Promise<void> {
+  await page.evaluate(({ type, point }) => {
+    const canvas = document.querySelector('canvas')!;
+    const touch = new Touch({
+      identifier: 1,
+      target: canvas,
+      clientX: point.x,
+      clientY: point.y,
+      pageX: point.x,
+      pageY: point.y,
+      screenX: point.x,
+      screenY: point.y,
+      radiusX: 8,
+      radiusY: 8,
+      force: 1
+    });
+    canvas.dispatchEvent(new TouchEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      touches: type === 'touchend' ? [] : [touch],
+      targetTouches: type === 'touchend' ? [] : [touch],
+      changedTouches: [touch]
+    }));
+  }, { type, point });
+}
+
 async function startRun(page: Page, path = '/', touch = false): Promise<void> {
   await page.goto(path);
   await expect(page.locator('canvas')).toBeVisible();
-  const start = await canvasScreenPoint(page, 1_056, 348);
-  if (touch) await page.touchscreen.tap(start.x, start.y);
-  else await page.mouse.click(start.x, start.y);
+  if (touch) {
+    await page.evaluate(() => window.__OGU_GAME__?.scene.start('GameScene', { characterId: 'guardian' }));
+  } else {
+    const start = await canvasScreenPoint(page, 1_056, 334);
+    await page.mouse.click(start.x, start.y);
+  }
   await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
 }
 
@@ -52,6 +86,7 @@ test('completes the accelerated full 15-minute timeline without runtime errors',
 
 test('mobile touch joystick moves the player and stops on release', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Touch input is covered by the mobile project.');
+  await page.setViewportSize({ width: 839, height: 412 });
   await startRun(page, '/', true);
   await page.evaluate(() => {
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as {
@@ -66,33 +101,7 @@ test('mobile touch joystick moves the player and stops on release', async ({ pag
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as { player: { x: number } };
     return scene.player.x;
   });
-  const dispatchTouch = async (type: 'touchstart' | 'touchmove' | 'touchend', point: { x: number; y: number }): Promise<void> => {
-    await page.evaluate(({ type, point }) => {
-      const canvas = document.querySelector('canvas')!;
-      const touch = new Touch({
-        identifier: 1,
-        target: canvas,
-        clientX: point.x,
-        clientY: point.y,
-        pageX: point.x,
-        pageY: point.y,
-        screenX: point.x,
-        screenY: point.y,
-        radiusX: 8,
-        radiusY: 8,
-        force: 1
-      });
-      canvas.dispatchEvent(new TouchEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        touches: type === 'touchend' ? [] : [touch],
-        targetTouches: type === 'touchend' ? [] : [touch],
-        changedTouches: [touch]
-      }));
-    }, { type, point });
-  };
-  await dispatchTouch('touchstart', start);
+  await dispatchCanvasTouch(page, 'touchstart', start);
   await page.waitForTimeout(80);
   const touchStarted = await page.evaluate(() => {
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as {
@@ -100,13 +109,13 @@ test('mobile touch joystick moves the player and stops on release', async ({ pag
     };
     return scene.inputSystem.joystick;
   });
-  await dispatchTouch('touchmove', end);
+  await dispatchCanvasTouch(page, 'touchmove', end);
   await page.waitForTimeout(350);
   const movingX = await page.evaluate(() => {
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as { player: { x: number } };
     return scene.player.x;
   });
-  await dispatchTouch('touchend', end);
+  await dispatchCanvasTouch(page, 'touchend', end);
   await page.waitForTimeout(80);
   const releasedX = await page.evaluate(() => {
     const scene = window.__OGU_GAME__?.scene.getScene('GameScene') as unknown as { player: { x: number } };

@@ -14,7 +14,7 @@ export class PickupSprite extends Phaser.Physics.Arcade.Sprite {
     this.pickupType = type;
     this.value = value;
     this.bossChest = bossChest;
-    this.setTexture(type === 'xp' ? 'xp-gem' : 'chest');
+    this.setTexture(type === 'xp' ? 'xp-gem' : bossChest ? 'chest-boss' : 'chest');
     this.setDisplaySize(type === 'xp' ? 18 : 48, type === 'xp' ? 18 : 48);
     return this;
   }

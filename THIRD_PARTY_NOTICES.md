@@ -4,6 +4,8 @@ This project was authored as a new modular implementation. No image, audio, or s
 
 The production bundle and offline service worker include the following open-source components. The complete copyright notices and license texts are shipped with the site at [`public/THIRD_PARTY_LICENSES.txt`](public/THIRD_PARTY_LICENSES.txt).
 
+The visual remaster also includes selected image files from Kenney UI Pack 2.0, Tiny Dungeon 1.0, and Particle Pack 1.1. All three packs are released under CC0 1.0. Exact file groups and source pages are listed in [`ASSET_CREDITS.md`](ASSET_CREDITS.md) and [`ASSET_MANIFEST.csv`](ASSET_MANIFEST.csv).
+
 | Component | Version | License | Source |
 |---|---:|---|---|
 | Phaser | 3.90.0 | MIT | https://github.com/phaserjs/phaser |
