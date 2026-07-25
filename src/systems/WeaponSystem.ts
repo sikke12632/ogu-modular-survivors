@@ -3,10 +3,12 @@ import type { RunState, OwnedWeapon } from '../domain/run/RunState';
 import { getWeapon } from '../data/weapons';
 import type { EnemySprite } from '../entities/Enemy';
 import type { ProjectileKind } from '../entities/Projectile';
+import { schoolWeaponTextureFor } from '../ui/SchoolArt';
 
 export interface ProjectileRequest {
   x: number; y: number; angle: number; speed: number; damage: number; pierce: number;
   lifeMs: number; color: number; radius: number; kind?: ProjectileKind; targetUid?: number;
+  visualKey?: string;
 }
 
 export interface CombatHost {
@@ -47,19 +49,26 @@ export class WeaponSystem {
     if (orbit) {
       const count = 1 + Math.floor(orbit.level / 2) + (orbit.evolved ? 3 : 0);
       const radius = (86 + orbit.level * 10) * state.stats.area;
-      graphics.lineStyle(1, 0x57efff, 0.2).strokeCircle(x, y, radius);
+      graphics.lineStyle(3, 0xfff8db, 0.42).strokeCircle(x, y, radius);
       for (let index = 0; index < count; index += 1) {
         const angle = timeMs / 650 + (index / count) * Math.PI * 2;
         const bx = x + Math.cos(angle) * radius;
         const by = y + Math.sin(angle) * radius;
-        graphics.fillStyle(orbit.evolved ? 0xffe478 : 0x5ef5ff, 1).fillTriangle(bx + 12, by, bx - 8, by - 6, bx - 8, by + 6);
+        graphics.save();
+        graphics.translateCanvas(bx, by);
+        graphics.rotateCanvas(angle + Math.PI / 2);
+        graphics.fillStyle(0x29384a, 1).fillRoundedRect(-13, -8, 26, 16, 4);
+        graphics.fillStyle(orbit.evolved ? 0xf4cc5f : 0xf07e8b, 1).fillRoundedRect(-11, -7, 22, 12, 3);
+        graphics.fillStyle(0x6fb4d4, 1).fillRect(-11, 2, 22, 4);
+        graphics.restore();
       }
     }
     const aura = state.weapons.find((weapon) => weapon.id === 'fire_aura');
     if (aura) {
       const radius = (120 + aura.level * 16) * state.stats.area * (aura.evolved ? 1.35 : 1);
-      graphics.fillStyle(0xff633f, 0.05 + Math.sin(timeMs / 180) * 0.015).fillCircle(x, y, radius);
-      graphics.lineStyle(2, 0xff8a4d, 0.2).strokeCircle(x, y, radius);
+      graphics.fillStyle(0xe76555, 0.05 + Math.sin(timeMs / 180) * 0.015).fillCircle(x, y, radius);
+      graphics.lineStyle(4, 0xfff8db, 0.28).strokeCircle(x, y, radius);
+      graphics.lineStyle(2, 0xe76555, 0.38).strokeCircle(x, y, radius - 7);
     }
   }
 
@@ -72,7 +81,13 @@ export class WeaponSystem {
     const duration = state.stats.duration * (evolved ? 1.3 : 1);
     const target = host.nearestEnemy(host.playerX, host.playerY, definition.range * area);
     const targetAngle = target ? Phaser.Math.Angle.Between(host.playerX, host.playerY, target.x, target.y) : -Math.PI / 2;
-    const base = { x: host.playerX, y: host.playerY, damage, color: definition.color };
+    const base = {
+      x: host.playerX,
+      y: host.playerY,
+      damage,
+      color: definition.color,
+      visualKey: schoolWeaponTextureFor(owned.id)
+    };
 
     if (definition.pattern === 'projectile') {
       const count = evolved ? 3 : 1 + Math.floor((level - 1) / 3);

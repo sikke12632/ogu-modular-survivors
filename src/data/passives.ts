@@ -9,14 +9,14 @@ export interface PassiveDefinition {
 }
 
 export const PASSIVES: readonly PassiveDefinition[] = [
-  { id: 'vitality', name: '생명 코어', icon: '♥', description: '체력과 회복 증가', maxLevel: 5 },
-  { id: 'power', name: '동력 증폭기', icon: '⚔', description: '공격력 증가', maxLevel: 5 },
-  { id: 'haste', name: '시간 톱니', icon: '🏹', description: '연사속도 증가', maxLevel: 5 },
-  { id: 'focus', name: '공간 렌즈', icon: '◎', description: '공격범위 증가', maxLevel: 5 },
-  { id: 'duration', name: '잔향 결정', icon: '⌛', description: '효과시간 증가', maxLevel: 5 },
-  { id: 'stride', name: '추진 장화', icon: '➤', description: '이동속도 증가', maxLevel: 5 },
-  { id: 'magnet', name: '회수 자석', icon: '🧲', description: '획득범위 증가', maxLevel: 5 },
-  { id: 'guard', name: '위상 장갑', icon: '🛡', description: '방어와 회피 증가', maxLevel: 5 }
+  { id: 'vitality', name: '급식 우유', icon: '♥', description: '❤️ 체력 증가', maxLevel: 5 },
+  { id: 'power', name: '응원 스티커', icon: '⚔', description: '⚔ 공격 강해짐', maxLevel: 5 },
+  { id: 'haste', name: '새 연필심', icon: '🏹', description: '🏹 공격 빨라짐', maxLevel: 5 },
+  { id: 'focus', name: '과학실 돋보기', icon: '◎', description: '◎ 공격 넓어짐', maxLevel: 5 },
+  { id: 'duration', name: '수업 스톱워치', icon: '⌛', description: '⌛ 효과 오래감', maxLevel: 5 },
+  { id: 'stride', name: '새 실내화', icon: '➤', description: '➤ 이동 빨라짐', maxLevel: 5 },
+  { id: 'magnet', name: '자석 필통', icon: '🧲', description: '🧲 멀리서 획득', maxLevel: 5 },
+  { id: 'guard', name: '안전 수칙', icon: '🛡', description: '🛡 덜 아프게', maxLevel: 5 }
 ] as const;
 
 export function getPassive(id: PassiveId): PassiveDefinition {

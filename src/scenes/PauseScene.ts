@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio/ProceduralSfx';
 import { addKenneyButton, addKenneyPanel, type KenneyTone } from '../ui/KenneyUi';
+import { SCHOOL_FONT } from '../ui/SchoolArt';
 import type { GameScene } from './GameScene';
 
 interface PauseData { gameScene: GameScene }
@@ -13,13 +14,13 @@ export class PauseScene extends Phaser.Scene {
   init(data: PauseData): void { this.gameScene = data.gameScene; }
 
   create(): void {
-    this.add.rectangle(640, 360, 1_280, 720, 0x061326, 0.86);
+    this.add.rectangle(640, 360, 1_280, 720, 0x29384a, 0.76);
     addKenneyPanel(this, 640, 360, 540, 584, 'blue');
     this.add.text(640, 112, '잠시 쉬어요', {
-      fontFamily: 'system-ui', fontSize: '40px', fontStyle: 'bold', color: '#263849'
+      fontFamily: SCHOOL_FONT, fontSize: '40px', fontStyle: 'bold', color: '#263849'
     }).setOrigin(0.5);
     this.add.text(640, 154, 'ESC를 누르면 바로 돌아가요', {
-      fontFamily: 'system-ui', fontSize: '16px', fontStyle: 'bold', color: '#435b70'
+      fontFamily: SCHOOL_FONT, fontSize: '16px', fontStyle: 'bold', color: '#435b70'
     }).setOrigin(0.5);
 
     this.button(640, 226, '계속하기', 'green', () => this.resume());

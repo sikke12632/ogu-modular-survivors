@@ -1,13 +1,16 @@
 import Phaser from 'phaser';
+import { SCHOOL_FONT } from './SchoolArt';
 
 export type KenneyTone = 'blue' | 'green' | 'orange' | 'grey';
 
 const TEXT_COLOR: Record<KenneyTone, string> = {
-  blue: '#ffffff',
-  green: '#ffffff',
-  orange: '#4b3217',
-  grey: '#ffffff'
+  blue: '#25354c',
+  green: '#25354c',
+  orange: '#fff7df',
+  grey: '#25354c'
 };
+
+const PANEL_SLICE = 8;
 
 export function addKenneyPanel(
   scene: Phaser.Scene,
@@ -17,7 +20,29 @@ export function addKenneyPanel(
   height: number,
   tone: KenneyTone = 'blue'
 ): Phaser.GameObjects.NineSlice {
-  return scene.add.nineslice(x, y, `ui-panel-${tone}`, undefined, width, height, 28, 28, 20, 20);
+  return scene.add.nineslice(
+    x,
+    y,
+    `ui-panel-${tone}`,
+    undefined,
+    width,
+    height,
+    PANEL_SLICE,
+    PANEL_SLICE,
+    PANEL_SLICE,
+    PANEL_SLICE
+  );
+}
+
+export function setKenneyPanelTone(
+  panel: Phaser.GameObjects.NineSlice,
+  tone: KenneyTone,
+  width: number,
+  height: number
+): Phaser.GameObjects.NineSlice {
+  return panel
+    .setTexture(`ui-panel-${tone}`)
+    .setSlices(width, height, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE);
 }
 
 export function addKenneyButton(
@@ -31,10 +56,21 @@ export function addKenneyButton(
   onClick: (label: Phaser.GameObjects.Text) => void,
   fontSize = 20
 ): Phaser.GameObjects.Container {
-  const background = scene.add.nineslice(0, 0, `ui-button-${tone}`, undefined, width, height, 28, 28, 20, 20)
+  const background = scene.add.nineslice(
+    0,
+    0,
+    `ui-button-${tone}`,
+    undefined,
+    width,
+    height,
+    PANEL_SLICE,
+    PANEL_SLICE,
+    PANEL_SLICE,
+    PANEL_SLICE
+  )
     .setName('background');
   const label = scene.add.text(0, -2, labelText, {
-    fontFamily: 'system-ui',
+    fontFamily: SCHOOL_FONT,
     fontSize: `${fontSize}px`,
     fontStyle: 'bold',
     color: TEXT_COLOR[tone],
@@ -45,14 +81,22 @@ export function addKenneyButton(
   const hitArea = scene.add.rectangle(x, y, width, height, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
   container.setData('hit-area', hitArea);
   hitArea
-    .on('pointerover', () => container.setScale(1.025))
+    .on('pointerover', () => container.setScale(1.035))
     .on('pointerout', () => container.setScale(1))
-    .on('pointerup', () => container.setScale(1.025));
+    .on('pointerup', () => container.setScale(1.035));
   const handlePointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (!hitArea.input?.enabled) return;
     if (pointer.x < x - width / 2 || pointer.x > x + width / 2) return;
     if (pointer.y < y - height / 2 || pointer.y > y + height / 2) return;
-    container.setScale(0.98);
+    scene.tweens.killTweensOf(container);
+    container.setScale(0.94);
+    scene.tweens.add({
+      targets: container,
+      scaleX: 1.035,
+      scaleY: 1.035,
+      duration: 115,
+      ease: 'Back.Out'
+    });
     onClick(label);
   };
   scene.input.on('pointerdown', handlePointerDown);
@@ -74,8 +118,14 @@ export class KenneyBar {
     tone: Exclude<KenneyTone, 'grey'>
   ) {
     this.width = width;
-    this.track = scene.add.image(x, y, 'ui-bar-track').setOrigin(0, 0.5).setDisplaySize(width, height);
-    this.fill = scene.add.image(x, y, `ui-bar-${tone}`).setOrigin(0, 0.5).setDisplaySize(width, height);
+    this.track = scene.add.image(x, y, 'ui-bar-track')
+      .setOrigin(0, 0.5)
+      .setDisplaySize(width, height)
+      .setTint(0x556979);
+    this.fill = scene.add.image(x, y, `ui-bar-${tone}`)
+      .setOrigin(0, 0.5)
+      .setDisplaySize(width, height)
+      .setTint(tone === 'green' ? 0x82c96a : tone === 'orange' ? 0xf08a57 : 0x62a9d8);
   }
 
   setValue(ratio: number): this {

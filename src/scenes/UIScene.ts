@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { eventBus, GameEvents, type HudSnapshot } from '../core/events/EventBus';
 import type { JoystickState } from '../systems/InputSystem';
 import { addKenneyButton, addKenneyPanel, KenneyBar } from '../ui/KenneyUi';
+import { SCHOOL_FONT } from '../ui/SchoolArt';
 import type { GameScene } from './GameScene';
 
 interface UISceneData { gameScene: GameScene }
@@ -82,9 +83,9 @@ export class UIScene extends Phaser.Scene {
 
     this.joystickGraphics.clear();
     if (this.joystick?.active) {
-      this.joystickGraphics.fillStyle(0x153c65, 0.32).fillCircle(this.joystick.baseX, this.joystick.baseY, 66);
-      this.joystickGraphics.lineStyle(4, 0x55cfff, 0.6).strokeCircle(this.joystick.baseX, this.joystick.baseY, 66);
-      this.joystickGraphics.fillStyle(0x55cfff, 0.5).fillCircle(this.joystick.knobX, this.joystick.knobY, 27);
+      this.joystickGraphics.fillStyle(0xffedc2, 0.34).fillCircle(this.joystick.baseX, this.joystick.baseY, 66);
+      this.joystickGraphics.lineStyle(5, 0x4d91c8, 0.72).strokeCircle(this.joystick.baseX, this.joystick.baseY, 66);
+      this.joystickGraphics.fillStyle(0xe76555, 0.68).fillCircle(this.joystick.knobX, this.joystick.knobY, 27);
     }
   }
 
@@ -106,7 +107,7 @@ export class UIScene extends Phaser.Scene {
 
   private text(x: number, y: number, value: string, size: number, color: string, bold = false): Phaser.GameObjects.Text {
     return this.add.text(x, y, value, {
-      fontFamily: 'system-ui',
+      fontFamily: SCHOOL_FONT,
       fontSize: `${size}px`,
       fontStyle: bold ? 'bold' : 'normal',
       color,

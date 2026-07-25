@@ -5,7 +5,13 @@ import { CHARACTERS, type CharacterId } from '../data/characters';
 import type { RunSnapshot } from '../domain/run/RunSerializer';
 import { saveAdapter } from '../persistence/IndexedDbSaveAdapter';
 import { platformGateway } from '../platform/LocalPlatformGateway';
-import { addKenneyButton, addKenneyPanel, type KenneyTone } from '../ui/KenneyUi';
+import {
+  addKenneyButton,
+  addKenneyPanel,
+  setKenneyPanelTone,
+  type KenneyTone
+} from '../ui/KenneyUi';
+import { SCHOOL_FONT, SCHOOL_PALETTE } from '../ui/SchoolArt';
 
 export class MainMenuScene extends Phaser.Scene {
   private selectedCharacter: CharacterId = 'guardian';
@@ -21,32 +27,34 @@ export class MainMenuScene extends Phaser.Scene {
     this.continueButton = undefined;
     this.snapshot = undefined;
     this.profileText = undefined;
-    this.cameras.main.setBackgroundColor('#07162c');
+    this.cameras.main.setBackgroundColor('#78c7e3');
     this.drawBackdrop();
 
-    this.add.text(64, 42, 'OGU // MODULAR ARENA', {
-      fontFamily: 'system-ui', fontSize: '17px', color: '#66d6ff', letterSpacing: 4
-    }).setAlpha(0.9);
-    this.add.text(64, 72, '오구서바이벌', {
-      fontFamily: 'system-ui', fontSize: '58px', fontStyle: 'bold', color: '#f4fbff',
-      stroke: '#176ab0', strokeThickness: 4
+    addKenneyPanel(this, 356, 118, 650, 178, 'orange').setAlpha(0.97);
+    this.add.text(64, 44, 'OGU SCHOOL DEFENSE', {
+      fontFamily: SCHOOL_FONT, fontSize: '16px', color: '#7a442f', letterSpacing: 3
     });
-    this.add.text(68, 142, '모듈러 v1.0 · 비주얼 리마스터', {
-      fontFamily: 'system-ui', fontSize: '23px', fontStyle: 'bold', color: '#72e58b'
+    this.add.text(64, 66, '오구서바이벌', {
+      fontFamily: SCHOOL_FONT, fontSize: '58px', fontStyle: 'bold', color: '#7b3e35',
+      stroke: '#fff7df', strokeThickness: 5
     });
-    this.add.text(68, 184, '게임 규칙은 그대로, 화면은 더 또렷하게', {
-      fontFamily: 'system-ui', fontSize: '17px', color: '#d7e9ff'
+    this.add.text(68, 137, '학교를 지켜라!', {
+      fontFamily: SCHOOL_FONT, fontSize: '25px', fontStyle: 'bold', color: '#503528'
+    });
+    this.add.text(68, 172, '연필과 지우개로 낙서 몬스터를 막아요', {
+      fontFamily: SCHOOL_FONT, fontSize: '16px', color: '#6f5343'
     });
 
-    this.add.text(64, 240, '캐릭터 선택', {
-      fontFamily: 'system-ui', fontSize: '22px', fontStyle: 'bold', color: '#ffffff'
+    this.add.text(64, 241, '누가 학교를 지킬까?', {
+      fontFamily: SCHOOL_FONT, fontSize: '22px', fontStyle: 'bold', color: '#29384a',
+      stroke: '#fff3cf', strokeThickness: 4
     });
     CHARACTERS.forEach((character, index) => {
       this.cards.push(this.createCharacterCard(character.id, 64 + index * 272, 295));
     });
     this.updateCardSelection();
 
-    this.makeButton(906, 298, 300, 72, '새 게임 시작', 'green', () => {
+    this.makeButton(906, 298, 300, 72, '▶  새 게임 시작', 'green', () => {
       sfx.unlock();
       sfx.play('ui');
       void this.startNewRun();
@@ -58,7 +66,7 @@ export class MainMenuScene extends Phaser.Scene {
       this.scene.start('GameScene', { characterId: this.snapshot.state.characterId, snapshot: this.snapshot });
     });
     this.setButtonEnabled(this.continueButton, false);
-    this.makeButton(906, 470, 300, 58, '소리 켜기 / 끄기', 'orange', () => {
+    this.makeButton(906, 470, 300, 58, '♪  소리 켜기 / 끄기', 'orange', () => {
       sfx.unlock();
       sfx.enabled = !sfx.enabled;
       localStorage.setItem('ogu-sound', sfx.enabled ? 'on' : 'off');
@@ -67,10 +75,11 @@ export class MainMenuScene extends Phaser.Scene {
 
     addKenneyPanel(this, 1_056, 590, 324, 134, 'blue').setAlpha(0.9);
     this.profileText = this.add.text(920, 548, '로컬 기록을 불러오는 중…', {
-      fontFamily: 'system-ui', fontSize: '15px', fontStyle: 'bold', color: '#263849', lineSpacing: 7
+      fontFamily: SCHOOL_FONT, fontSize: '15px', fontStyle: 'bold', color: '#263849', lineSpacing: 7
     });
     this.add.text(64, 675, `v${GAME_VERSION} · WASD/방향키 이동 · Q 필살기 · ESC 일시정지 · 모바일 가상 조이스틱`, {
-      fontFamily: 'system-ui', fontSize: '14px', color: '#7797bd'
+      fontFamily: SCHOOL_FONT, fontSize: '14px', color: '#4d5a62',
+      backgroundColor: '#fff0c5', padding: { x: 10, y: 5 }
     });
 
     this.input.once('pointerdown', () => sfx.unlock());
@@ -116,25 +125,26 @@ export class MainMenuScene extends Phaser.Scene {
   private createCharacterCard(id: CharacterId, x: number, y: number): Phaser.GameObjects.Container {
     const definition = CHARACTERS.find((character) => character.id === id)!;
     const background = addKenneyPanel(this, 0, 0, 248, 318, 'blue');
-    const slot = this.add.image(0, -82, 'ui-slot-green').setDisplaySize(104, 104);
-    const portrait = this.add.image(0, -84, `player-${id}`).setDisplaySize(84, 84);
+    const slot = this.add.image(0, -82, 'ui-slot-green').setDisplaySize(96, 96);
+    const portrait = this.add.sprite(0, -84, `player-${id}`, 0).setDisplaySize(96, 96);
+    portrait.play(`player-${id}-walk-down`);
     const selected = this.add.text(0, -143, '선택됨', {
-      fontFamily: 'system-ui', fontSize: '13px', fontStyle: 'bold', color: '#4b3217'
+      fontFamily: SCHOOL_FONT, fontSize: '13px', fontStyle: 'bold', color: '#4b3217'
     }).setOrigin(0.5).setName('selected');
     const title = this.add.text(0, -14, definition.name, {
-      fontFamily: 'system-ui', fontSize: '25px', fontStyle: 'bold', color: '#263849'
+      fontFamily: SCHOOL_FONT, fontSize: '25px', fontStyle: 'bold', color: '#263849'
     }).setOrigin(0.5);
     const subtitle = this.add.text(0, 20, definition.subtitle, {
-      fontFamily: 'system-ui', fontSize: '13px', fontStyle: 'bold', color: '#2b6887'
+      fontFamily: SCHOOL_FONT, fontSize: '13px', fontStyle: 'bold', color: '#2b6887'
     }).setOrigin(0.5);
     const description = this.add.text(0, 67, definition.description, {
-      fontFamily: 'system-ui', fontSize: '16px', fontStyle: 'bold', color: '#34495e',
+      fontFamily: SCHOOL_FONT, fontSize: '16px', fontStyle: 'bold', color: '#34495e',
       align: 'center', wordWrap: { width: 202 }
     }).setOrigin(0.5);
     const hpDots = Math.round(definition.maxHp / 50);
     const speedDots = Math.round(definition.moveSpeed / 85);
     const stats = this.add.text(0, 122, `♥ ${'●'.repeat(hpDots)}  ➤ ${'●'.repeat(speedDots)}`, {
-      fontFamily: 'system-ui', fontSize: '14px', fontStyle: 'bold', color: '#31596d'
+      fontFamily: SCHOOL_FONT, fontSize: '14px', fontStyle: 'bold', color: '#31596d'
     }).setOrigin(0.5);
     const container = this.add.container(x + 124, y + 159, [
       background, slot, portrait, selected, title, subtitle, description, stats
@@ -152,9 +162,7 @@ export class MainMenuScene extends Phaser.Scene {
     for (const card of this.cards) {
       const selected = card.getData('id') === this.selectedCharacter;
       const background = card.list[0] as Phaser.GameObjects.NineSlice;
-      background
-        .setTexture(selected ? 'ui-panel-orange' : 'ui-panel-blue')
-        .setSlices(248, 318, 28, 28, 20, 20);
+      setKenneyPanelTone(background, selected ? 'orange' : 'blue', 248, 318);
       (card.getByName('selected') as Phaser.GameObjects.Text).setVisible(selected);
       card.setScale(selected ? 1.035 : 1);
     }
@@ -190,19 +198,34 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   private drawBackdrop(): void {
-    const graphics = this.add.graphics();
-    graphics.lineStyle(1, 0x29618d, 0.28);
-    for (let x = 0; x <= 1_280; x += 64) graphics.lineBetween(x, 0, x, 720);
-    for (let y = 0; y <= 720; y += 64) graphics.lineBetween(0, y, 1_280, y);
-    graphics.fillStyle(0x33a9ff, 0.08).fillCircle(1_050, 120, 300);
-    graphics.fillStyle(0x72e58b, 0.08).fillCircle(950, 620, 260);
-    graphics.fillStyle(0xffa13d, 0.06).fillCircle(230, 650, 220);
+    const graphics = this.add.graphics().setDepth(-1);
+    graphics.fillStyle(SCHOOL_PALETTE.sky).fillRect(0, 0, 1_280, 310);
+    graphics.fillStyle(SCHOOL_PALETTE.cloud, 0.9)
+      .fillCircle(140, 72, 34).fillCircle(178, 62, 46).fillCircle(220, 76, 31)
+      .fillCircle(690, 54, 28).fillCircle(724, 44, 39).fillCircle(762, 59, 27);
+    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-speckle')
+      .setTileScale(3.5)
+      .setTint(0xf1bd80)
+      .setDepth(-2);
+    graphics.lineStyle(5, SCHOOL_PALETTE.chalk, 0.68).strokeRoundedRect(42, 322, 820, 330, 18);
+    graphics.lineStyle(3, SCHOOL_PALETTE.blue, 0.42).lineBetween(452, 322, 452, 652);
+
+    this.add.image(1_045, 151, 'school-building').setDisplaySize(455, 348).setDepth(-0.5);
+    this.add.rectangle(1_045, 52, 190, 50, 0xffedc2, 0.98)
+      .setStrokeStyle(4, 0x7b3e35)
+      .setDepth(0.2);
+    this.add.text(1_045, 72, '오 구 초 등 학 교', {
+      fontFamily: SCHOOL_FONT,
+      fontSize: '19px',
+      fontStyle: 'bold',
+      color: '#7b3e35'
+    }).setOrigin(0.5).setY(52).setDepth(0.3);
   }
 
   private showToast(message: string): void {
     const toast = this.add.text(1_054, 666, message, {
-      fontFamily: 'system-ui', fontSize: '15px', color: '#ffffff',
-      backgroundColor: '#176fb0', padding: { x: 14, y: 9 }
+      fontFamily: SCHOOL_FONT, fontSize: '15px', color: '#29384a',
+      backgroundColor: '#ffedc2', padding: { x: 14, y: 9 }
     }).setOrigin(0.5);
     this.tweens.add({
       targets: toast,

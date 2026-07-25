@@ -10,14 +10,14 @@ export interface UpgradePresentation {
 }
 
 const PASSIVE_LABELS: Record<string, string> = {
-  vitality: '체력 증가',
-  power: '공격력 증가',
-  haste: '연사속도 증가',
-  focus: '공격범위 증가',
-  duration: '효과시간 증가',
-  stride: '이동속도 증가',
-  magnet: '획득범위 증가',
-  guard: '방어력 증가'
+  vitality: '❤️ 체력 증가',
+  power: '⚔ 공격 강해짐',
+  haste: '🏹 공격 빨라짐',
+  focus: '◎ 공격 넓어짐',
+  duration: '⌛ 효과 오래감',
+  stride: '➤ 이동 빨라짐',
+  magnet: '🧲 멀리서 획득',
+  guard: '🛡 덜 아프게'
 };
 
 export function presentUpgrade(choice: UpgradeChoice): UpgradePresentation {

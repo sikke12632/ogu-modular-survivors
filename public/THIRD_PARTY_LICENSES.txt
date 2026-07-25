@@ -4,6 +4,19 @@ THIRD-PARTY SOFTWARE LICENSES
 This file is included in the published site so recipients of the JavaScript
 bundle and offline service worker receive the applicable notices.
 
+CC0 VISUAL ASSETS
+------------------
+
+MetroCity - Free Top Down Character Pack and MetroCity - Free External Top
+Down Environment Asset Pack by JIK-A-4; UI Pack - Pixel Adventure, Tiny
+Dungeon, and Particle Pack by Kenney. These assets are released under
+Creative Commons Zero 1.0 Universal:
+
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Source links and imported file groups are documented in ASSET_CREDITS.md and
+ASSET_MANIFEST.csv in the source repository.
+
 
 MIT-LICENSED COMPONENTS
 -----------------------
