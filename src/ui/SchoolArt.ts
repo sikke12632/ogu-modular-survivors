@@ -75,11 +75,14 @@ export function schoolWeaponTextureFor(id: WeaponId): string {
 }
 
 export function createStudentAnimations(scene: Phaser.Scene): void {
+  // Sheet layout: 0-5 down, 6-11 RIGHT, 12-17 up, 18-23 LEFT.
+  // (The side rows face the opposite way from what the old code assumed —
+  //  swapping them here is what stops the moonwalk.)
   const directions = [
     { name: 'down', start: 0 },
-    { name: 'left', start: 6 },
+    { name: 'left', start: 18 },
     { name: 'up', start: 12 },
-    { name: 'right', start: 18 }
+    { name: 'right', start: 6 }
   ] as const;
   for (const id of ['guardian', 'ranger', 'mystic'] as CharacterId[]) {
     for (const direction of directions) {
@@ -116,7 +119,7 @@ export function updateStudentAnimation(
     sprite.play(`${sprite.texture.key}-walk-${direction}`, true);
     return;
   }
-  const idleFrame = direction === 'left' ? 6 : direction === 'up' ? 12 : direction === 'right' ? 18 : 0;
+  const idleFrame = direction === 'left' ? 18 : direction === 'up' ? 12 : direction === 'right' ? 6 : 0;
   sprite.anims.stop();
   sprite.setFrame(idleFrame);
 }

@@ -246,16 +246,10 @@ export class MainMenuScene extends Phaser.Scene {
     graphics.lineStyle(5, SCHOOL_PALETTE.chalk, 0.68).strokeRoundedRect(42, 322, 820, 330, 18);
     graphics.lineStyle(3, SCHOOL_PALETTE.blue, 0.42).lineBetween(452, 322, 452, 652);
 
-    this.add.image(1_045, 151, 'school-building').setDisplaySize(455, 348).setDepth(-0.5);
-    this.add.rectangle(1_045, 52, 190, 50, 0xffedc2, 0.98)
-      .setStrokeStyle(4, 0x7b3e35)
-      .setDepth(0.2);
-    this.add.text(1_045, 72, '오 구 초 등 학 교', {
-      fontFamily: SCHOOL_FONT,
-      fontSize: '19px',
-      fontStyle: 'bold',
-      color: '#7b3e35'
-    }).setOrigin(0.5).setY(52).setDepth(0.3);
+    // (우상단 학교 건물 이미지는 바닥 없이 하늘에 떠 보여서 제거 —
+    //  인게임 스폰 지점의 학교 건물만 유지한다.)
+    graphics.fillStyle(SCHOOL_PALETTE.cloud, 0.85)
+      .fillCircle(1_020, 96, 30).fillCircle(1_058, 84, 42).fillCircle(1_100, 98, 28);
   }
 
   private showToast(message: string): void {
