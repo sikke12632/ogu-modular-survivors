@@ -25,10 +25,13 @@ export class ProjectileSprite extends Phaser.Physics.Arcade.Sprite {
     visualKey?: string;
   }): this {
     this.enableBody(true, config.x, config.y, true, true);
+    // Visual size only — the physics circle below stays identical, so combat
+    // is unchanged; supply sprites just need to be readable at survivors pace.
+    const visualSize = config.visualKey ? Math.max(34, config.radius * 3) : config.radius * 2.8;
     this.setTexture(config.visualKey ?? 'school-pencil')
       .clearTint()
       .setRotation(config.angle)
-      .setDisplaySize(config.radius * 2.8, config.radius * 2.8);
+      .setDisplaySize(visualSize, visualSize);
     this.setCircle(7).setVelocity(Math.cos(config.angle) * config.speed, Math.sin(config.angle) * config.speed);
     this.damage = config.damage;
     this.pierce = config.pierce;

@@ -4,10 +4,10 @@ import { SCHOOL_FONT } from './SchoolArt';
 export type KenneyTone = 'blue' | 'green' | 'orange' | 'grey';
 
 const TEXT_COLOR: Record<KenneyTone, string> = {
-  blue: '#25354c',
-  green: '#25354c',
+  blue: '#4a3423',
+  green: '#4a3423',
   orange: '#fff7df',
-  grey: '#25354c'
+  grey: '#4a3423'
 };
 
 const PANEL_SLICE = 8;
@@ -120,12 +120,11 @@ export class KenneyBar {
     this.width = width;
     this.track = scene.add.image(x, y, 'ui-bar-track')
       .setOrigin(0, 0.5)
-      .setDisplaySize(width, height)
-      .setTint(0x556979);
+      .setDisplaySize(width, height);
     this.fill = scene.add.image(x, y, `ui-bar-${tone}`)
       .setOrigin(0, 0.5)
       .setDisplaySize(width, height)
-      .setTint(tone === 'green' ? 0x82c96a : tone === 'orange' ? 0xf08a57 : 0x62a9d8);
+      .setTint(tone === 'green' ? 0x7ed957 : tone === 'orange' ? 0xffa54f : 0x5fb8ff);
   }
 
   setValue(ratio: number): this {

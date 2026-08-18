@@ -42,8 +42,20 @@ interface BeamEffect { x1: number; y1: number; x2: number; y2: number; width: nu
 interface PulseEffect { x: number; y: number; radius: number; remainingMs: number; totalMs: number; color: number }
 interface EnemyHazard { x: number; y: number; radius: number; damage: number; remainingMs: number; totalMs: number }
 
-const WORLD_WIDTH = 2_560;
-const WORLD_HEIGHT = 1_600;
+// The world is infinite: the ground is a camera-locked tile layer and decor
+// spawns per-chunk around the camera. These constants only anchor the spawn
+// plaza (the schoolyard) in world coordinates.
+const SPAWN_X = 1_280;
+const SPAWN_Y = 940;
+const YARD = { x: SPAWN_X, y: SPAWN_Y - 40, width: 1_680, height: 1_120 } as const;
+const PROJECTILE_CULL_DISTANCE = 1_500;
+const DECOR_CHUNK = 640;
+
+function chunkSeed(chunkX: number, chunkY: number): number {
+  let seed = (chunkX * 73_856_093) ^ (chunkY * 19_349_663) ^ 0x5f356495;
+  seed = Math.abs(seed) % 2_147_483_647;
+  return seed === 0 ? 1 : seed;
+}
 
 export class GameScene extends Phaser.Scene implements CombatHost {
   state!: RunState;
@@ -52,6 +64,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   mode!: RunModeDefinition;
 
   private player!: Phaser.Physics.Arcade.Sprite;
+  private nameLabel!: Phaser.GameObjects.Text;
+  private groundTile!: Phaser.GameObjects.TileSprite;
+  private decorChunks = new Map<string, Phaser.GameObjects.GameObject[]>();
+  private decorTimerMs = 0;
   private enemies!: Phaser.Physics.Arcade.Group;
   private projectiles!: Phaser.Physics.Arcade.Group;
   private enemyProjectiles!: Phaser.Physics.Arcade.Group;
@@ -116,15 +132,14 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.assembleRemainingMs = checkpoint.timers.assembleMs;
       this.assembleFireMs = checkpoint.timers.assembleFireMs;
     }
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    this.drawArena();
+    this.drawWorld();
     this.createGroups();
     this.createPlayer();
     this.restoreImportantPickups();
     this.createCollisions();
     this.inputSystem = new InputSystem(this);
     this.inputSystem.create();
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setZoom(1);
     this.scene.launch('UIScene', { gameScene: this });
     if (!checkpoint) this.spawnSystem.restoreBossProgress(this.state.bossesDefeated, this.state.activeBoss?.id);
@@ -162,6 +177,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       return;
     }
     this.updateMovement();
+    this.updateGround();
+    this.updateDecor(safeDelta);
     this.updateSpatialGrid(safeDelta);
     this.weaponSystem.update(this.state, scaledDelta, this);
     this.updateProjectiles(safeDelta);
@@ -410,51 +427,135 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.pulses = [];
     this.enemyHazards = [];
     this.grid = new SpatialHashGrid<EnemySprite>(160);
+    this.decorChunks = new Map();
+    this.decorTimerMs = 0;
   }
 
-  private drawArena(): void {
-    this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 'school-ground-speckle')
-      .setTileScale(4)
-      .setTint(0xeab172)
-      .setDepth(-4);
-    const background = this.add.graphics().setDepth(-3);
-    background.fillStyle(SCHOOL_PALETTE.cream, 0.2).fillRect(0, 0, WORLD_WIDTH, 620);
-    background.lineStyle(8, SCHOOL_PALETTE.chalk, 0.78).strokeRoundedRect(670, 570, 1_220, 760, 30);
-    background.lineStyle(5, SCHOOL_PALETTE.blue, 0.58)
-      .lineBetween(1_280, 570, 1_280, 1_330)
-      .strokeCircle(1_280, 950, 128);
-    background.lineStyle(5, SCHOOL_PALETTE.green, 0.55)
-      .strokeRoundedRect(120, 980, 390, 410, 24)
-      .strokeRoundedRect(2_050, 980, 390, 410, 24);
-    for (let index = 0; index < 6; index += 1) {
-      const y = 690 + index * 56;
-      background.lineStyle(4, index % 2 ? SCHOOL_PALETTE.blue : SCHOOL_PALETTE.chalk, 0.62)
-        .strokeRect(540, y, 58, 48);
-    }
-    background.lineStyle(12, 0xa95d42, 0.82).strokeRect(6, 6, WORLD_WIDTH - 12, WORLD_HEIGHT - 12);
+  private drawWorld(): void {
+    const camera = this.cameras.main;
+    // Infinite grass: camera-locked tile layer, scrolled by hand in updateGround.
+    this.groundTile = this.add.tileSprite(0, 0, camera.width + 64, camera.height + 64, 'school-ground-grass')
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setTileScale(2)
+      .setDepth(-6);
 
-    this.add.image(WORLD_WIDTH / 2, 610, 'school-building')
+    // 모래 운동장 (spawn plaza)
+    this.add.tileSprite(YARD.x, YARD.y, YARD.width / 2, YARD.height / 2, 'school-ground-yard')
+      .setTileScale(1)
+      .setScale(2)
+      .setDepth(-5);
+    const lines = this.add.graphics().setDepth(-4);
+    const left = YARD.x - YARD.width / 2;
+    const top = YARD.y - YARD.height / 2;
+    lines.lineStyle(6, SCHOOL_PALETTE.chalk, 0.85).strokeRoundedRect(left + 46, top + 46, YARD.width - 92, YARD.height - 92, 26);
+    lines.lineStyle(5, SCHOOL_PALETTE.chalk, 0.7)
+      .lineBetween(YARD.x, top + 46, YARD.x, top + YARD.height - 46)
+      .strokeCircle(YARD.x, YARD.y, 132);
+    lines.lineStyle(5, SCHOOL_PALETTE.chalk, 0.6)
+      .strokeRect(left + 46, YARD.y - 190, 132, 380)
+      .strokeRect(left + YARD.width - 178, YARD.y - 190, 132, 380);
+
+    // 학교 건물 + 화단
+    const buildingY = top - 128;
+    this.add.image(SPAWN_X, buildingY, 'school-building')
       .setDisplaySize(430, 330)
       .setDepth(-2);
-    this.add.rectangle(WORLD_WIDTH / 2, 580, 230, 48, SCHOOL_PALETTE.cream, 0.98)
+    this.add.rectangle(SPAWN_X, buildingY - 30, 230, 48, SCHOOL_PALETTE.cream, 0.98)
       .setStrokeStyle(5, 0x7b3e35)
       .setDepth(-1.5);
-    this.add.text(WORLD_WIDTH / 2, 580, '오 구 초 등 학 교', {
+    this.add.text(SPAWN_X, buildingY - 30, '오 구 초 등 학 교', {
       fontFamily: SCHOOL_FONT,
       fontSize: '20px',
-      fontStyle: 'bold',
       color: '#7b3e35'
     }).setOrigin(0.5).setDepth(-1.4);
+    for (let index = 0; index < 5; index += 1) {
+      this.add.image(SPAWN_X - 340 - index * 66, buildingY + 130, 'school-hedge').setScale(3.6).setDepth(-1.6);
+      this.add.image(SPAWN_X + 340 + index * 66, buildingY + 130, 'school-hedge').setScale(3.6).setDepth(-1.6);
+    }
     for (const decoration of [
-      { key: 'school-bench', x: 720, y: 535 },
-      { key: 'school-bench', x: 1_840, y: 535 },
-      { key: 'school-notice-board', x: 430, y: 350 },
-      { key: 'school-notice-board', x: 2_130, y: 350 }
+      { key: 'school-bench', x: SPAWN_X - 560, y: buildingY + 70, scale: 4 },
+      { key: 'school-bench', x: SPAWN_X + 560, y: buildingY + 70, scale: 4 },
+      { key: 'school-notice-board', x: SPAWN_X - 700, y: buildingY + 40, scale: 4 },
+      { key: 'school-notice-board', x: SPAWN_X + 700, y: buildingY + 40, scale: 4 },
+      { key: 'school-tree-round', x: left - 90, y: top + 130, scale: 3 },
+      { key: 'school-tree-round-2', x: left + YARD.width + 90, y: top + 130, scale: 3 },
+      { key: 'school-tree-pine', x: left - 110, y: YARD.y + 240, scale: 3 },
+      { key: 'school-tree-pine-2', x: left + YARD.width + 110, y: YARD.y + 240, scale: 3 }
     ]) {
-      this.add.image(decoration.x, decoration.y, decoration.key).setScale(4).setDepth(-1);
+      this.add.image(decoration.x, decoration.y, decoration.key).setScale(decoration.scale).setDepth(-1);
     }
     this.persistentGraphics = this.add.graphics().setDepth(4);
     this.effectGraphics = this.add.graphics().setDepth(20);
+  }
+
+  private updateGround(): void {
+    const camera = this.cameras.main;
+    if (this.groundTile.width !== camera.width + 64 || this.groundTile.height !== camera.height + 64) {
+      this.groundTile.setSize(camera.width + 64, camera.height + 64);
+    }
+    this.groundTile.setTilePosition(camera.scrollX / 2, camera.scrollY / 2);
+  }
+
+  private updateDecor(deltaMs: number): void {
+    this.decorTimerMs -= deltaMs;
+    if (this.decorTimerMs > 0) return;
+    this.decorTimerMs = 260;
+    const camera = this.cameras.main;
+    const firstX = Math.floor(camera.scrollX / DECOR_CHUNK) - 1;
+    const firstY = Math.floor(camera.scrollY / DECOR_CHUNK) - 1;
+    const lastX = firstX + Math.ceil(camera.width / DECOR_CHUNK) + 2;
+    const lastY = firstY + Math.ceil(camera.height / DECOR_CHUNK) + 2;
+    const needed = new Set<string>();
+    for (let chunkY = firstY; chunkY <= lastY; chunkY += 1) {
+      for (let chunkX = firstX; chunkX <= lastX; chunkX += 1) {
+        const key = `${chunkX}:${chunkY}`;
+        needed.add(key);
+        if (!this.decorChunks.has(key)) this.decorChunks.set(key, this.spawnDecorChunk(chunkX, chunkY));
+      }
+    }
+    for (const [key, objects] of this.decorChunks) {
+      if (needed.has(key)) continue;
+      for (const object of objects) object.destroy();
+      this.decorChunks.delete(key);
+    }
+  }
+
+  private spawnDecorChunk(chunkX: number, chunkY: number): Phaser.GameObjects.GameObject[] {
+    const random = mulberry32(chunkSeed(chunkX, chunkY));
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const props: readonly { key: string; weight: number; scale: number }[] = [
+      { key: 'school-flower-white', weight: 6, scale: 2 },
+      { key: 'school-tuft-red', weight: 3, scale: 2 },
+      { key: 'school-bush-orange', weight: 2, scale: 2.4 },
+      { key: 'school-palm-mini', weight: 2, scale: 2.2 },
+      { key: 'school-tree-round', weight: 3, scale: 2.8 },
+      { key: 'school-tree-round-2', weight: 2, scale: 2.8 },
+      { key: 'school-tree-pine', weight: 3, scale: 2.8 },
+      { key: 'school-tree-pine-2', weight: 2, scale: 2.8 },
+      { key: 'school-rock-big', weight: 1, scale: 2.4 },
+      { key: 'school-rock-2', weight: 1, scale: 2.4 }
+    ];
+    const totalWeight = props.reduce((sum, prop) => sum + prop.weight, 0);
+    const count = 3 + Math.floor(random() * 4);
+    for (let index = 0; index < count; index += 1) {
+      const x = chunkX * DECOR_CHUNK + random() * DECOR_CHUNK;
+      const y = chunkY * DECOR_CHUNK + random() * DECOR_CHUNK;
+      if (Math.abs(x - YARD.x) < YARD.width / 2 + 170 && Math.abs(y - (YARD.y - 130)) < YARD.height / 2 + 420) continue;
+      let roll = random() * totalWeight;
+      let chosen = props[0]!;
+      for (const prop of props) {
+        roll -= prop.weight;
+        if (roll <= 0) { chosen = prop; break; }
+      }
+      const isGroundPatch = chosen.key === 'school-grass-worn' || chosen.key === 'school-grass-leaf';
+      objects.push(
+        this.add.image(x, y, chosen.key)
+          .setScale(chosen.scale)
+          .setDepth(isGroundPatch ? -5.5 : -1)
+      );
+    }
+    return objects;
   }
 
   private createGroups(): void {
@@ -467,12 +568,18 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private createPlayer(): void {
     const character = getCharacter(this.characterId);
     const restored = this.snapshot?.checkpoint.player;
-    const x = Phaser.Math.Clamp(restored?.x ?? WORLD_WIDTH / 2, 30, WORLD_WIDTH - 30);
-    const y = Phaser.Math.Clamp(restored?.y ?? WORLD_HEIGHT / 2, 30, WORLD_HEIGHT - 30);
+    const x = restored?.x ?? SPAWN_X;
+    const y = restored?.y ?? SPAWN_Y;
     this.player = this.physics.add.sprite(x, y, `player-${character.id}`, 0).setDepth(10).setDisplaySize(72, 72);
     this.player.setData('student-direction', 'down');
     this.setCircleWorldRadius(this.player, 22);
-    this.player.setCollideWorldBounds(true);
+    this.nameLabel = this.add.text(x, y - 46, character.name, {
+      fontFamily: SCHOOL_FONT,
+      fontSize: '16px',
+      color: '#ffffff',
+      stroke: '#2b2117',
+      strokeThickness: 4
+    }).setOrigin(0.5, 1).setDepth(11);
   }
 
   private createCollisions(): void {
@@ -493,6 +600,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     );
     if (this.inputSystem.consumeUltimate()) this.useUltimate();
     this.player.setAlpha(this.nowMs < this.playerInvulnerableUntil && Math.floor(this.nowMs / 70) % 2 === 0 ? 0.35 : 1);
+    this.nameLabel.setPosition(this.player.x, this.player.y - 46).setAlpha(this.player.alpha);
   }
 
   private updateSpatialGrid(deltaMs: number): void {
@@ -523,7 +631,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
         if (Phaser.Math.Distance.Between(projectile.x, projectile.y, this.player.x, this.player.y) < 35) projectile.retire();
       }
       if (projectile.body) projectile.setRotation(Math.atan2(projectile.body.velocity.y, projectile.body.velocity.x));
-      if (projectile.lifeMs <= 0 || projectile.x < -50 || projectile.y < -50 || projectile.x > WORLD_WIDTH + 50 || projectile.y > WORLD_HEIGHT + 50) projectile.retire();
+      if (projectile.lifeMs <= 0 || Phaser.Math.Distance.Between(projectile.x, projectile.y, this.player.x, this.player.y) > PROJECTILE_CULL_DISTANCE) projectile.retire();
     }
     for (const projectile of this.enemyProjectiles.getChildren() as ProjectileSprite[]) {
       if (!projectile.active) continue;
@@ -578,7 +686,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       if (enemy.state !== 'dash') {
         enemy.setAngle(Math.sin(this.nowMs / 190 + enemy.visualPhase) * (definition.boss ? 1.4 : 3));
       }
-      enemy.setDepth(8 + enemy.y / WORLD_HEIGHT);
+      enemy.setDepth(8 + Phaser.Math.Clamp((enemy.y - playerY) / 2_400, -0.9, 0.9));
     }
   }
 
@@ -812,8 +920,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const distance = nearX === undefined ? range(this.random, 690, 860) : range(this.random, 45, 110);
     const originX = nearX ?? this.player.x;
     const originY = nearY ?? this.player.y;
-    const x = Phaser.Math.Clamp(originX + Math.cos(angle) * distance, 40, WORLD_WIDTH - 40);
-    const y = Phaser.Math.Clamp(originY + Math.sin(angle) * distance, 40, WORLD_HEIGHT - 40);
+    const x = originX + Math.cos(angle) * distance;
+    const y = originY + Math.sin(angle) * distance;
     const enemy = this.enemies.get(x, y, `enemy-${definition.id}`) as EnemySprite | null;
     if (!enemy) return undefined;
     enemy.activate(this.enemyUid++, definition, hpScale, damageScale, this.random);
@@ -822,7 +930,6 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const previousTextureSize = definition.boss ? 144 : definition.elite ? 80 : 56;
     const previousScale = definition.radius * 2.4 / previousTextureSize;
     this.setCircleWorldRadius(enemy, definition.radius * previousScale);
-    enemy.setCollideWorldBounds(true);
     return enemy;
   }
 
@@ -831,10 +938,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     const boss = this.spawnEnemy(definition, hpScale, damageScale);
     if (!boss) return;
     if (restore) {
-      boss.setPosition(
-        Phaser.Math.Clamp(restore.x, 40, WORLD_WIDTH - 40),
-        Phaser.Math.Clamp(restore.y, 40, WORLD_HEIGHT - 40)
-      );
+      boss.setPosition(restore.x, restore.y);
       boss.hp = restore.hp;
       boss.maxHp = restore.maxHp;
       boss.phase = restore.phase;
@@ -1119,12 +1223,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private findFarPosition(): { x: number; y: number } {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const x = range(this.random, 100, WORLD_WIDTH - 100);
-      const y = range(this.random, 100, WORLD_HEIGHT - 100);
-      if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) > 420) return { x, y };
-    }
-    return { x: Phaser.Math.Clamp(this.player.x + 520, 80, WORLD_WIDTH - 80), y: this.player.y };
+    const angle = this.random() * Math.PI * 2;
+    const distance = range(this.random, 460, 720);
+    return {
+      x: this.player.x + Math.cos(angle) * distance,
+      y: this.player.y + Math.sin(angle) * distance
+    };
   }
 
   private spawnDamageNumber(x: number, y: number, amount: number, color: number): void {
@@ -1222,10 +1326,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private restoreImportantPickups(): void {
     for (const saved of this.snapshot?.checkpoint.importantPickups ?? []) {
-      const x = Phaser.Math.Clamp(saved.x, 30, WORLD_WIDTH - 30);
-      const y = Phaser.Math.Clamp(saved.y, 30, WORLD_HEIGHT - 30);
-      const pickup = this.pickups.get(x, y, 'chest') as PickupSprite | null;
-      pickup?.activate(x, y, 'chest', saved.value, saved.bossChest).setDepth(7);
+      const pickup = this.pickups.get(saved.x, saved.y, 'chest') as PickupSprite | null;
+      pickup?.activate(saved.x, saved.y, 'chest', saved.value, saved.bossChest).setDepth(7);
     }
   }
 

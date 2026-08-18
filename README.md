@@ -17,8 +17,9 @@
 - 일반 적 12종, 엘리트 4종, 상태 기반 보스 3종
 - 콤보, 30콤보 오구 어셈블, 무작위 미션, 멀리 등장하는 보물상자
 - 키보드·마우스/터치, 가상 조이스틱, 반응형 HUD
-- MetroCity 학생·Tiny Dungeon 몬스터·Kenney UI를 맞춘 밝은 학교 픽셀 테마
-- Noto Sans KR Variable·Black Han Sans를 자체 호스팅하는 현대적인 한글 UI
+- 무한 확장 운동장 맵(잔디 벌판 + 모래 운동장 + 학교 랜드마크)과 청크 기반 배경 소품
+- MetroCity 학생(1학기 회장단 3인 리컬러)·Ninja Adventure 애니메이션 몬스터·Kenney UI 학교 팔레트
+- Noto Sans KR Variable·Jua를 자체 호스팅하는 둥글둥글한 한글 UI
 - 적중·크리티컬·사망·레벨업·보스·필살기·획득·미션 완료 이펙트
 - 숫자 대신 효과를 바로 읽는 업그레이드 카드와 6요소 집중 HUD
 - v2 체크포인트 자동 저장/이어하기, IndexedDB 장애 대체 저장과 로컬 최고기록
@@ -77,7 +78,7 @@ v1.0은 게임 규칙과 밸런스를 유지한 비주얼 전용 업데이트입
 - `src/ui/SchoolArt.ts`: 학생 애니메이션·에셋 매핑·학교용품 공격 비주얼
 - `src/ui/UpgradePresentation.ts`: 숫자 없는 업그레이드 표시 문구
 - `src/ui/VisualEffects.ts`: 상황별 이펙트와 색상 규칙
-- `public/assets/school/`: MetroCity·Tiny Dungeon·Pixel Adventure CC0 선별 에셋
+- `public/assets/school/`: MetroCity·Ninja Adventure·Tiny Dungeon·Pixel Adventure CC0 선별 에셋 + 오리지널 학용품 스프라이트
 - `public/assets/kenney/`: 픽업·상자·이펙트 CC0 이미지와 라이선스
 
 캐릭터나 적의 외형을 바꿀 때는 `player-{characterId}`, `enemy-{enemyId}` 텍스처 키를 유지하면 전투 코어를 건드릴 필요가 없습니다.

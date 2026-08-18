@@ -21,9 +21,8 @@ export class ResultScene extends Phaser.Scene {
   create(): void {
     const victory = this.result.victory;
     this.cameras.main.setBackgroundColor('#78c7e3');
-    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-speckle')
-      .setTileScale(3.5)
-      .setTint(0xf1bd80)
+    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-grass')
+      .setTileScale(2)
       .setDepth(-2);
     const graphics = this.add.graphics();
     graphics.setDepth(-1);

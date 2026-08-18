@@ -2,10 +2,18 @@ import Phaser from 'phaser';
 import { CHARACTERS } from '../data/characters';
 import { BOSSES, ELITES, ENEMIES } from '../data/enemies';
 import {
-  createSchoolSupplyTextures,
+  createEnemyAnimations,
   createStudentAnimations,
-  schoolEnemyArtFor
+  SCHOOL_SUPPLY_VISUALS
 } from '../ui/SchoolArt';
+
+const WORLD_IMAGES = [
+  'ground-grass', 'ground-yard',
+  'tree-round', 'tree-round-2', 'tree-pine', 'tree-pine-2',
+  'rock-big', 'rock-2', 'hedge', 'bush-orange', 'palm-mini',
+  'flower-white', 'tuft-red',
+  'bench', 'stool', 'locker', 'notice-board', 'ground-speckle'
+] as const;
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
@@ -27,8 +35,15 @@ export class BootScene extends Phaser.Scene {
         frameHeight: 32
       });
     }
+    // Cute animated monsters: 4x4 grid of 16px frames (col = facing, row = frame).
     for (const enemy of [...ENEMIES, ...ELITES, ...BOSSES]) {
-      this.load.image(`enemy-${enemy.id}`, `assets/school/enemies/${schoolEnemyArtFor(enemy)}.png`);
+      this.load.spritesheet(`enemy-${enemy.id}`, `assets/school/enemies/${enemy.id}.png`, {
+        frameWidth: 16,
+        frameHeight: 16
+      });
+    }
+    for (const supply of SCHOOL_SUPPLY_VISUALS) {
+      this.load.image(`school-${supply}`, `assets/school/supplies/${supply}.png`);
     }
     this.load.image('xp-gem', 'assets/kenney/sprites/xp-gem.png');
     this.load.image('chest', 'assets/kenney/sprites/chest.png');
@@ -36,7 +51,7 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('school-building', 'assets/school/world/school-building.png');
     this.load.image('school-annex', 'assets/school/world/annex-building.png');
-    for (const key of ['ground-clean', 'ground-speckle', 'yard-line', 'bench', 'stool', 'locker', 'notice-board']) {
+    for (const key of WORLD_IMAGES) {
       this.load.image(`school-${key}`, `assets/school/world/${key}.png`);
     }
 
@@ -48,23 +63,18 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     this.createUtilityTextures();
-    createSchoolSupplyTextures(this);
     createStudentAnimations(this);
+    createEnemyAnimations(this, [...ENEMIES, ...ELITES, ...BOSSES].map((enemy) => enemy.id));
     for (const key of [
       ...CHARACTERS.map((character) => `player-${character.id}`),
       ...[...ENEMIES, ...ELITES, ...BOSSES].map((enemy) => `enemy-${enemy.id}`),
+      ...SCHOOL_SUPPLY_VISUALS.map((supply) => `school-${supply}`),
+      ...WORLD_IMAGES.map((key) => `school-${key}`),
       'xp-gem',
       'chest',
       'chest-boss',
       'school-building',
-      'school-annex',
-      'school-ground-clean',
-      'school-ground-speckle',
-      'school-yard-line',
-      'school-bench',
-      'school-stool',
-      'school-locker',
-      'school-notice-board'
+      'school-annex'
     ]) {
       this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }

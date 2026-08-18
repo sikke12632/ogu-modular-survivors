@@ -45,6 +45,7 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
       .setAngle(0)
       .clearTint()
       .setScale(1);
+    this.play({ key: `enemy-${definition.id}-walk`, startFrame: uid % 4 });
     this.setDataEnabled();
     return this;
   }

@@ -11,7 +11,7 @@ importers:
       '@fontsource-variable/noto-sans-kr':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource/black-han-sans':
+      '@fontsource/jua':
         specifier: ^5.3.0
         version: 5.3.0
       idb-keyval:
@@ -708,8 +708,8 @@ packages:
   '@fontsource-variable/noto-sans-kr@5.3.0':
     resolution: {integrity: sha512-h863ZOIVMKjX0PSr0hLMUp/SjrwOul2yp0f5P61avqXdhqDABSkakzG2Ee07d3W8gVYgS9dMmxULdCkoN09f1A==}
 
-  '@fontsource/black-han-sans@5.3.0':
-    resolution: {integrity: sha512-HZtn51La10fZU1DdnbY06YcvLxF9NAkNk/GdA6rKDWPztH9zWLqVcfVvCKNmosBuFrhToGbw/pMNJ/TjdC296Q==}
+  '@fontsource/jua@5.3.0':
+    resolution: {integrity: sha512-k9ZTVYVqY4WxiDl55Udf2mLHca+voxTeIZ7qvLZUmR3VaUqM+RCZDYigEj1iKgV0Gx90NvzJy4CQpEPjDHBisA==}
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -2788,7 +2788,7 @@ snapshots:
 
   '@fontsource-variable/noto-sans-kr@5.3.0': {}
 
-  '@fontsource/black-han-sans@5.3.0': {}
+  '@fontsource/jua@5.3.0': {}
 
   '@isaacs/cliui@9.0.0': {}
 

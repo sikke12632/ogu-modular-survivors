@@ -240,9 +240,8 @@ export class MainMenuScene extends Phaser.Scene {
     graphics.fillStyle(SCHOOL_PALETTE.cloud, 0.9)
       .fillCircle(140, 72, 34).fillCircle(178, 62, 46).fillCircle(220, 76, 31)
       .fillCircle(690, 54, 28).fillCircle(724, 44, 39).fillCircle(762, 59, 27);
-    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-speckle')
-      .setTileScale(3.5)
-      .setTint(0xf1bd80)
+    this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-grass')
+      .setTileScale(2)
       .setDepth(-2);
     graphics.lineStyle(5, SCHOOL_PALETTE.chalk, 0.68).strokeRoundedRect(42, 322, 820, 330, 18);
     graphics.lineStyle(3, SCHOOL_PALETTE.blue, 0.42).lineBetween(452, 322, 452, 652);

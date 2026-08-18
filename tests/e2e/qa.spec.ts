@@ -75,7 +75,7 @@ test('selects the 10-minute mode and loads the self-hosted Korean fonts', async 
   });
   expect(mode).toEqual({ modeId: 'focus', durationMs: 600_000 });
   expect(await page.evaluate(() => document.fonts.check('700 18px "Noto Sans KR Variable"', '오구서바이벌'))).toBe(true);
-  expect(await page.evaluate(() => document.fonts.check('400 32px "Black Han Sans"', '새 능력을 골라요'))).toBe(true);
+  expect(await page.evaluate(() => document.fonts.check('400 32px "Jua"', '새 능력을 골라요'))).toBe(true);
 });
 
 test('completes the accelerated full 5-minute timeline without runtime errors', async ({ page }, testInfo) => {
