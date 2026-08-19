@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     label: Phaser.GameObjects.Text;
     offsetX: number;
     offsetY: number;
+    arriving: boolean;
   }[] = [];
   private groundTile!: Phaser.GameObjects.TileSprite;
   private decorChunks = new Map<string, Phaser.GameObjects.GameObject[]>();
@@ -895,17 +896,37 @@ export class GameScene extends Phaser.Scene implements CombatHost {
         stroke: '#2b2117',
         strokeThickness: 4
       }).setOrigin(0.5, 1).setDepth(11);
-      this.assembleFriends.push({
+      const friend = {
         sprite,
         label,
         offsetX: Math.cos(offsetAngle) * offsetRadius,
-        offsetY: Math.sin(offsetAngle) * offsetRadius
+        offsetY: Math.sin(offsetAngle) * offsetRadius,
+        arriving: true
+      };
+      this.assembleFriends.push(friend);
+      // 등장 연출: 목표 지점으로 슝 미끄러져 들어와 폴짝 인사
+      const targetX = this.player.x + friend.offsetX;
+      const targetY = this.player.y + friend.offsetY;
+      updateStudentAnimation(sprite, targetX - startX, targetY - startY);
+      this.tweens.add({
+        targets: sprite,
+        x: targetX,
+        y: targetY,
+        duration: 420,
+        ease: 'Cubic.Out',
+        onComplete: () => {
+          friend.arriving = false;
+          playVisualEffect(this, 'pickup', sprite.x, sprite.y, VFX_COLORS.orange);
+          this.tweens.add({ targets: sprite, y: sprite.y - 14, duration: 120, yoyo: true, ease: 'Quad.Out' });
+        }
       });
+      this.tweens.add({ targets: label, x: targetX, y: targetY - 40, duration: 420, ease: 'Cubic.Out' });
     }
   }
 
   private updateAssembleFriends(): void {
     for (const friend of this.assembleFriends) {
+      if (friend.arriving) continue; // 등장 트윈 중에는 위치를 건드리지 않는다
       const targetX = this.player.x + friend.offsetX;
       const targetY = this.player.y + friend.offsetY;
       const moveX = targetX - friend.sprite.x;
@@ -919,6 +940,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private dismissAssembleFriends(): void {
     for (const friend of this.assembleFriends) {
+      this.tweens.killTweensOf(friend.sprite);
+      this.tweens.killTweensOf(friend.label);
       const angle = Math.atan2(friend.sprite.y - this.player.y, friend.sprite.x - this.player.x);
       const exitX = friend.sprite.x + Math.cos(angle) * 700;
       const exitY = friend.sprite.y + Math.sin(angle) * 700;
@@ -1238,9 +1261,17 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   private triggerAssemble(message: string): void {
+    const wasActive = this.assembleRemainingMs > 0;
     this.assembleRemainingMs = 5_000;
     this.assembleFireMs = 0;
     this.showMessage(message, '#ffe06d');
+    if (wasActive) return;
+    // 발동 임팩트: 화면 플래시 + 카메라 줌 펀치 + 대형 배너
+    eventBus.emit(GameEvents.assemble);
+    this.cameras.main.flash(260, 255, 236, 150);
+    this.cameras.main.zoomTo(1.07, 130, Phaser.Math.Easing.Quadratic.Out, true, (_camera, progress) => {
+      if (progress === 1) this.cameras.main.zoomTo(1, 220, Phaser.Math.Easing.Quadratic.In);
+    });
   }
 
   private resolveMission(success: boolean): void {

@@ -21,6 +21,7 @@ export class UIScene extends Phaser.Scene {
   private ultimateBar!: KenneyBar;
   private comboText!: Phaser.GameObjects.Text;
   private comboHintText!: Phaser.GameObjects.Text;
+  private assembleBanner!: Phaser.GameObjects.Text;
   private lastCombo = 0;
   private hud?: HudSnapshot;
   private joystick?: JoystickState;
@@ -63,9 +64,14 @@ export class UIScene extends Phaser.Scene {
     this.messageText = this.text(640, 170, '', 26, '#ffffff', true)
       .setOrigin(0.5).setAlpha(0).setDepth(50);
 
+    this.assembleBanner = this.text(640, 330, '오구 어셈블!', 72, '#ffe14a', true)
+      .setOrigin(0.5).setStroke('#a83a2a', 12).setShadow(0, 6, '#2b2117', 0, true, true)
+      .setAlpha(0).setDepth(60);
+
     eventBus.on(GameEvents.hud, this.onHud, this);
     eventBus.on(GameEvents.joystick, this.onJoystick, this);
     eventBus.on(GameEvents.message, this.onMessage, this);
+    eventBus.on(GameEvents.assemble, this.onAssemble, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
   }
 
@@ -113,6 +119,20 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onHud(hud: HudSnapshot): void { this.hud = hud; }
+
+  private onAssemble(): void {
+    this.tweens.killTweensOf(this.assembleBanner);
+    this.assembleBanner.setAlpha(1).setScale(0.2).setAngle(-4).setY(330);
+    this.tweens.add({ targets: this.assembleBanner, scale: 1, angle: 0, duration: 260, ease: 'Back.Out' });
+    this.tweens.add({
+      targets: this.assembleBanner,
+      alpha: 0,
+      y: 300,
+      delay: 1_150,
+      duration: 320,
+      ease: 'Quad.In'
+    });
+  }
   private onJoystick(joystick: JoystickState): void { this.joystick = { ...joystick }; }
 
   private onMessage(payload: { message: string; color: string; durationMs: number }): void {
@@ -142,5 +162,6 @@ export class UIScene extends Phaser.Scene {
     eventBus.off(GameEvents.hud, this.onHud, this);
     eventBus.off(GameEvents.joystick, this.onJoystick, this);
     eventBus.off(GameEvents.message, this.onMessage, this);
+    eventBus.off(GameEvents.assemble, this.onAssemble, this);
   }
 }

@@ -5,6 +5,7 @@ export const eventBus = new Phaser.Events.EventEmitter();
 export const GameEvents = {
   hud: 'run:hud',
   message: 'run:message',
+  assemble: 'run:assemble',
   mission: 'run:mission',
   boss: 'run:boss',
   joystick: 'input:joystick',
