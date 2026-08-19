@@ -99,13 +99,16 @@ test('completes the accelerated full 5-minute timeline without runtime errors', 
     window.__OGU_TEST__?.startRunAutomation();
   });
 
+  // 무한 맵에서는 계속 달리면 적이 영원히 못 따라잡는다.
+  // 잠깐만 움직이고 멈춰서 전투가 실제로 벌어지게 한다.
   await page.keyboard.down('d');
+  await page.waitForTimeout(1_500);
+  await page.keyboard.up('d');
   await page.waitForFunction(
     () => Boolean(window.__OGU_GAME__?.scene.isActive('ResultScene')),
     undefined,
     { timeout: 90_000, polling: 250 }
   );
-  await page.keyboard.up('d');
 
   const result = await page.evaluate(() => window.__OGU_TEST__?.getRunResult());
   expect(result).toBeDefined();

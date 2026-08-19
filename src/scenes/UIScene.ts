@@ -19,6 +19,9 @@ export class UIScene extends Phaser.Scene {
   private hpBar!: KenneyBar;
   private xpBar!: KenneyBar;
   private ultimateBar!: KenneyBar;
+  private comboText!: Phaser.GameObjects.Text;
+  private comboHintText!: Phaser.GameObjects.Text;
+  private lastCombo = 0;
   private hud?: HudSnapshot;
   private joystick?: JoystickState;
 
@@ -52,6 +55,11 @@ export class UIScene extends Phaser.Scene {
     this.xpBar = new KenneyBar(this, 28, 704, 1_224, 12, 'blue').setDepth(3);
     this.text(640, 681, '경험치', 13, '#263849', true).setOrigin(0.5).setDepth(4);
 
+    this.comboText = this.text(640, 122, '', 26, '#ffffff', true)
+      .setOrigin(0.5).setStroke('#2b2117', 6).setDepth(5).setVisible(false);
+    this.comboHintText = this.text(640, 148, '30이 되면 친구들이 달려와요!', 14, '#ffe9b0', true)
+      .setOrigin(0.5).setStroke('#2b2117', 4).setDepth(5).setVisible(false);
+
     this.messageText = this.text(640, 170, '', 26, '#ffffff', true)
       .setOrigin(0.5).setAlpha(0).setDepth(50);
 
@@ -80,6 +88,21 @@ export class UIScene extends Phaser.Scene {
       .setText(ready ? 'Q\n준비 완료!' : 'Q\n필살기')
       .setColor(ready ? '#3c2a12' : '#5b421f')
       .setScale(ready ? 1.08 : 1);
+
+    if (hud.combo >= 2) {
+      const color = hud.combo >= 30 ? '#ff6d9c' : hud.combo >= 20 ? '#ffb04a' : hud.combo >= 10 ? '#ffe14a' : '#ffffff';
+      this.comboText.setText(`콤보 ×${hud.combo}`).setColor(color).setVisible(true);
+      this.comboHintText.setVisible(hud.combo >= 15 && hud.combo < 30);
+      if (hud.combo > this.lastCombo) {
+        this.tweens.killTweensOf(this.comboText);
+        this.comboText.setScale(1.3);
+        this.tweens.add({ targets: this.comboText, scale: 1, duration: 160, ease: 'Back.Out' });
+      }
+    } else {
+      this.comboText.setVisible(false);
+      this.comboHintText.setVisible(false);
+    }
+    this.lastCombo = hud.combo;
 
     this.joystickGraphics.clear();
     if (this.joystick?.active) {

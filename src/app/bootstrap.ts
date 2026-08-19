@@ -11,9 +11,10 @@ declare global {
 }
 
 export function bootstrap(): Phaser.Game {
+  // autoUpdate: 새 버전을 올리면 다음 접속(새로고침)에서 바로 적용된다.
+  // 이전 'prompt' 방식은 수락 UI가 없어서 학생들이 구버전에 갇혔었다.
   registerSW({
-    immediate: false,
-    onNeedRefresh() { window.dispatchEvent(new CustomEvent('ogu:update-ready')); },
+    immediate: true,
     onOfflineReady() { window.dispatchEvent(new CustomEvent('ogu:offline-ready')); }
   });
   const game = new Phaser.Game(gameConfig);

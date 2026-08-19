@@ -1195,26 +1195,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     }
     this.state.ultimate = 0;
     const character = getCharacter(this.characterId);
-    const ultimateColor = this.characterId === 'guardian'
-      ? VFX_COLORS.heal
-      : this.characterId === 'ranger'
-        ? VFX_COLORS.lightning
-        : VFX_COLORS.ice;
-    playVisualEffect(this, 'ultimate', this.player.x, this.player.y, ultimateColor);
+    // 필살기 = 오구 어셈블: 게이지를 쓰면 친구들이 달려와 5초간 함께 싸운다.
+    playVisualEffect(this, 'ultimate', this.player.x, this.player.y, VFX_COLORS.orange);
     sfx.play('ultimate', 0.14);
-    this.showMessage(character.ultimateName, '#fff072');
     this.cameras.main.shake(350, 0.015 * this.performanceSystem.effectsScale);
     this.playerInvulnerableUntil = this.nowMs + 2_000;
-    if (this.characterId === 'guardian') {
-      for (const enemy of this.queryEnemies(this.player.x, this.player.y, 390)) this.damageEnemy(enemy, 115 * this.state.stats.damage, 0x55f2ff);
-      this.state.stats.hp = Math.min(this.state.stats.maxHp, this.state.stats.hp + this.state.stats.maxHp * 0.18);
-      this.createPulse(this.player.x, this.player.y, 390, 0x55f2ff);
-    } else if (this.characterId === 'ranger') {
-      for (let index = 0; index < 18; index += 1) this.spawnProjectile({ x: this.player.x, y: this.player.y, angle: index / 18 * Math.PI * 2, speed: 760, damage: 72 * this.state.stats.damage, pierce: 8, lifeMs: 1_300, color: 0xb9ff70, radius: 8 });
-    } else {
-      this.createZone(this.player.x, this.player.y, 450, 28 * this.state.stats.damage, 4_200, 260, 0xb46cff);
-      this.createPulse(this.player.x, this.player.y, 450, 0xb46cff);
-    }
+    this.triggerAssemble(`${character.ultimateName} · 오구 어셈블!`);
   }
 
   private fireEnemyProjectile(x: number, y: number, targetX: number, targetY: number, damage: number, speed: number, color: number): void {
