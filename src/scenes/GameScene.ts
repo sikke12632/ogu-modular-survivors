@@ -341,6 +341,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.state.ultimate = this.state.ultimateMax;
       this.requestUltimate();
     }
+    // 80배속 압축 시간에서는 실시간 물리로 적과 접촉할 틈이 없어
+    // 처치가 0이 될 수 있다. QA 모드에서만 근처 적을 직접 타격해
+    // 전투 경로(피해→처치→콤보→점수)를 확정적으로 검증한다.
+    for (const enemy of this.queryEnemies(this.player.x, this.player.y, 1_400).slice(0, 6)) {
+      this.damageEnemy(enemy, 2_500);
+    }
   }
 
   openPause(): void {
