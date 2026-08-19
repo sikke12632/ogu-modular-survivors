@@ -22,22 +22,22 @@ const PASSIVE_LABELS: Record<string, string> = {
 
 export function presentUpgrade(choice: UpgradeChoice): UpgradePresentation {
   if (choice.kind === 'heal') {
-    return { icon: '♥', title: '체력 회복', description: '체력을 크게 채움', badge: '회복' };
+    return { icon: '♥', title: '체력 회복', description: choice.description, badge: '회복' };
   }
   if (choice.kind === 'passive') {
     const passive = getPassive(choice.id);
     return {
       icon: passive.icon,
-      title: PASSIVE_LABELS[choice.id] ?? passive.name,
-      description: choice.isNew ? '새 보조 능력' : '효과가 더 강해짐',
+      title: choice.isNew ? `${passive.name}\n${PASSIVE_LABELS[choice.id] ?? ''}` : choice.title,
+      description: choice.description,
       badge: choice.isNew ? '새 능력' : '능력 강화'
     };
   }
   const weapon = getWeapon(choice.id);
   return {
     icon: weapon.icon,
-    title: weapon.name,
-    description: choice.isNew ? weapon.description : '무기가 더 강해짐',
+    title: choice.isNew ? weapon.name : choice.title,
+    description: choice.description,
     badge: choice.isNew ? '새 능력' : '능력 강화'
   };
 }

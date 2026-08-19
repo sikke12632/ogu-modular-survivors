@@ -74,7 +74,7 @@ export function schoolWeaponTextureFor(id: WeaponId): string {
   return `school-${WEAPON_ART[id]}`;
 }
 
-export function createStudentAnimations(scene: Phaser.Scene): void {
+export function createStudentAnimations(scene: Phaser.Scene, textureKeys?: readonly string[]): void {
   // Sheet layout: 0-5 down, 6-11 RIGHT, 12-17 up, 18-23 LEFT.
   // (The side rows face the opposite way from what the old code assumed —
   //  swapping them here is what stops the moonwalk.)
@@ -84,13 +84,14 @@ export function createStudentAnimations(scene: Phaser.Scene): void {
     { name: 'up', start: 12 },
     { name: 'right', start: 6 }
   ] as const;
-  for (const id of ['guardian', 'ranger', 'mystic'] as CharacterId[]) {
+  const keys = textureKeys ?? (['guardian', 'ranger', 'mystic'] as CharacterId[]).map((id) => `player-${id}`);
+  for (const textureKey of keys) {
     for (const direction of directions) {
-      const key = `player-${id}-walk-${direction.name}`;
+      const key = `${textureKey}-walk-${direction.name}`;
       if (scene.anims.exists(key)) continue;
       scene.anims.create({
         key,
-        frames: scene.anims.generateFrameNumbers(`player-${id}`, {
+        frames: scene.anims.generateFrameNumbers(textureKey, {
           start: direction.start,
           end: direction.start + 5
         }),
@@ -102,7 +103,7 @@ export function createStudentAnimations(scene: Phaser.Scene): void {
 }
 
 export function updateStudentAnimation(
-  sprite: Phaser.Physics.Arcade.Sprite,
+  sprite: Phaser.GameObjects.Sprite,
   movementX: number,
   movementY: number
 ): void {

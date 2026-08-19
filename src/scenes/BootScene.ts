@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CHARACTERS } from '../data/characters';
 import { BOSSES, ELITES, ENEMIES } from '../data/enemies';
+import { FRIEND_SPRITE_IDS } from '../data/friends';
 import {
   createEnemyAnimations,
   createStudentAnimations,
@@ -35,6 +36,12 @@ export class BootScene extends Phaser.Scene {
         frameHeight: 32
       });
     }
+    for (const friend of FRIEND_SPRITE_IDS) {
+      this.load.spritesheet(friend, `assets/school/players/${friend}.png`, {
+        frameWidth: 32,
+        frameHeight: 32
+      });
+    }
     // Cute animated monsters: 4x4 grid of 16px frames (col = facing, row = frame).
     for (const enemy of [...ENEMIES, ...ELITES, ...BOSSES]) {
       this.load.spritesheet(`enemy-${enemy.id}`, `assets/school/enemies/${enemy.id}.png`, {
@@ -64,9 +71,11 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.createUtilityTextures();
     createStudentAnimations(this);
+    createStudentAnimations(this, FRIEND_SPRITE_IDS);
     createEnemyAnimations(this, [...ENEMIES, ...ELITES, ...BOSSES].map((enemy) => enemy.id));
     for (const key of [
       ...CHARACTERS.map((character) => `player-${character.id}`),
+      ...FRIEND_SPRITE_IDS,
       ...[...ENEMIES, ...ELITES, ...BOSSES].map((enemy) => `enemy-${enemy.id}`),
       ...SCHOOL_SUPPLY_VISUALS.map((supply) => `school-${supply}`),
       ...WORLD_IMAGES.map((key) => `school-${key}`),

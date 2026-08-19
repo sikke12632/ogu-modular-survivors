@@ -48,11 +48,21 @@ async function startRun(page: Page, path = '/', touch = false): Promise<void> {
   await expect(page.locator('canvas')).toBeVisible();
   if (touch) {
     await page.evaluate(() => window.__OGU_GAME__?.scene.start('GameScene', { characterId: 'guardian' }));
-  } else {
+    await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
+    return;
+  }
+  // 메뉴가 뜨기 전에 클릭이 나가면 시작을 놓친다(소프트웨어 렌더링 환경에서 간헐 실패).
+  // 메뉴 준비를 기다린 뒤, 시작될 때까지 클릭을 재시도한다.
+  await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('MainMenuScene')));
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     const start = await canvasScreenPoint(page, 1_056, 391);
     await page.mouse.click(start.x, start.y);
+    const started = await page
+      .waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')), undefined, { timeout: 8_000 })
+      .catch(() => null);
+    if (started) return;
   }
-  await page.waitForFunction(() => Boolean(window.__OGU_GAME__?.scene.isActive('GameScene')));
+  throw new Error('run did not start after repeated start-button clicks');
 }
 
 test('selects the 10-minute mode and loads the self-hosted Korean fonts', async ({ page }, testInfo) => {

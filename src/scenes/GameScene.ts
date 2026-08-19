@@ -5,6 +5,7 @@ import { eventBus, GameEvents, type HudSnapshot } from '../core/events/EventBus'
 import { SpatialHashGrid } from '../core/math/SpatialHashGrid';
 import { mulberry32, range, type StatefulRandomFn } from '../core/math/random';
 import { getCharacter, type CharacterId } from '../data/characters';
+import { pickFriends } from '../data/friends';
 import { getEnemy, type BossId, type EnemyDefinition } from '../data/enemies';
 import {
   DEFAULT_RUN_MODE_ID,
@@ -65,6 +66,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
 
   private player!: Phaser.Physics.Arcade.Sprite;
   private nameLabel!: Phaser.GameObjects.Text;
+  private assembleFriends: {
+    sprite: Phaser.GameObjects.Sprite;
+    label: Phaser.GameObjects.Text;
+    offsetX: number;
+    offsetY: number;
+  }[] = [];
   private groundTile!: Phaser.GameObjects.TileSprite;
   private decorChunks = new Map<string, Phaser.GameObjects.GameObject[]>();
   private decorTimerMs = 0;
@@ -286,7 +293,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   }
 
   getUpgradeChoices(): UpgradeChoice[] {
-    return draftUpgrades(this.state, this.random, 3);
+    return draftUpgrades(this.state, this.random, 3, this.mode.upgradeSteps);
   }
 
   selectUpgrade(choice: UpgradeChoice): void {
@@ -429,6 +436,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.grid = new SpatialHashGrid<EnemySprite>(160);
     this.decorChunks = new Map();
     this.decorTimerMs = 0;
+    this.assembleFriends = [];
   }
 
   private drawWorld(): void {
@@ -848,13 +856,91 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.chestTimerMs = range(this.random, 42_000, 58_000);
     }
     if (this.assembleRemainingMs > 0) {
+      // Covers checkpoint restores that land mid-assemble as well.
+      if (this.assembleFriends.length === 0) this.spawnAssembleFriends();
       this.assembleRemainingMs -= deltaMs;
       this.assembleFireMs -= deltaMs;
       if (this.assembleFireMs <= 0) {
         this.assembleFireMs = 230;
         this.fireAssembleVolley();
       }
+      this.updateAssembleFriends();
+      if (this.assembleRemainingMs <= 0) this.dismissAssembleFriends();
     }
+  }
+
+  private spawnAssembleFriends(): void {
+    // 연출 전용 난수: 게임 판정용 this.random을 소모하면 체크포인트 복원의
+    // 결정성이 깨지므로 반드시 Math.random을 쓴다.
+    const count = 3 + Math.floor(Math.random() * 2);
+    for (const pick of pickFriends(Math.random, count)) {
+      const angle = Math.random() * Math.PI * 2;
+      const startX = this.player.x + Math.cos(angle) * 620;
+      const startY = this.player.y + Math.sin(angle) * 620;
+      const offsetAngle = Math.random() * Math.PI * 2;
+      const offsetRadius = 92 + Math.random() * 36;
+      const sprite = this.add.sprite(startX, startY, pick.texture, 0)
+        .setDisplaySize(64, 64)
+        .setDepth(9.5);
+      const label = this.add.text(startX, startY - 40, pick.name, {
+        fontFamily: SCHOOL_FONT,
+        fontSize: '14px',
+        color: '#fff7df',
+        stroke: '#2b2117',
+        strokeThickness: 4
+      }).setOrigin(0.5, 1).setDepth(11);
+      this.assembleFriends.push({
+        sprite,
+        label,
+        offsetX: Math.cos(offsetAngle) * offsetRadius,
+        offsetY: Math.sin(offsetAngle) * offsetRadius
+      });
+    }
+  }
+
+  private updateAssembleFriends(): void {
+    for (const friend of this.assembleFriends) {
+      const targetX = this.player.x + friend.offsetX;
+      const targetY = this.player.y + friend.offsetY;
+      const moveX = targetX - friend.sprite.x;
+      const moveY = targetY - friend.sprite.y;
+      friend.sprite.x += moveX * 0.14;
+      friend.sprite.y += moveY * 0.14;
+      updateStudentAnimation(friend.sprite, moveX, moveY);
+      friend.label.setPosition(friend.sprite.x, friend.sprite.y - 40);
+    }
+  }
+
+  private dismissAssembleFriends(): void {
+    for (const friend of this.assembleFriends) {
+      const angle = Math.atan2(friend.sprite.y - this.player.y, friend.sprite.x - this.player.x);
+      const exitX = friend.sprite.x + Math.cos(angle) * 700;
+      const exitY = friend.sprite.y + Math.sin(angle) * 700;
+      // 잠깐 폴짝 인사하고 밖으로 달려 나간다.
+      this.tweens.add({
+        targets: friend.sprite,
+        y: friend.sprite.y - 16,
+        duration: 140,
+        yoyo: true,
+        onComplete: () => {
+          updateStudentAnimation(friend.sprite, exitX - friend.sprite.x, exitY - friend.sprite.y);
+          this.tweens.add({
+            targets: [friend.sprite, friend.label],
+            x: exitX,
+            y: exitY,
+            alpha: 0,
+            duration: 700,
+            ease: 'Quad.In',
+            onComplete: () => {
+              friend.sprite.destroy();
+              friend.label.destroy();
+            }
+          });
+        }
+      });
+      this.tweens.add({ targets: friend.label, y: friend.label.y - 16, duration: 140, yoyo: true });
+    }
+    this.assembleFriends = [];
   }
 
   private updateHud(deltaMs: number): void {
@@ -904,13 +990,10 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       graphics.lineStyle(8, 0xffd46b, 0.5).lineBetween(boss.x, boss.y, boss.x + boss.dashX * 900, boss.y + boss.dashY * 900);
     }
     if (this.assembleRemainingMs > 0) {
-      const count = 4;
-      for (let index = 0; index < count; index += 1) {
-        const angle = this.nowMs / 500 + index / count * Math.PI * 2;
-        const x = this.player.x + Math.cos(angle) * 74;
-        const y = this.player.y + Math.sin(angle) * 74;
-        graphics.fillStyle(index % 2 ? 0xffd66b : 0x6df5ff, 1).fillCircle(x, y, 8);
-        graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(x, y, 12);
+      // 친구들 발밑에 응원 링 — 어셈블 중임을 표시
+      for (const friend of this.assembleFriends) {
+        graphics.lineStyle(2, 0xffe06d, 0.55 + Math.sin(this.nowMs / 140) * 0.2)
+          .strokeCircle(friend.sprite.x, friend.sprite.y + 22, 20);
       }
     }
   }
@@ -1151,10 +1234,12 @@ export class GameScene extends Phaser.Scene implements CombatHost {
   private fireAssembleVolley(): void {
     const target = this.nearestEnemy(this.player.x, this.player.y, 850);
     if (!target) return;
+    // 발사 위치만 친구들 위치로 옮긴 것 — 발수·피해·탄속은 기존과 동일하다.
     for (let index = 0; index < 4; index += 1) {
+      const friend = this.assembleFriends[index % Math.max(1, this.assembleFriends.length)];
       const orbitAngle = this.nowMs / 500 + index / 4 * Math.PI * 2;
-      const x = this.player.x + Math.cos(orbitAngle) * 74;
-      const y = this.player.y + Math.sin(orbitAngle) * 74;
+      const x = friend ? friend.sprite.x : this.player.x + Math.cos(orbitAngle) * 74;
+      const y = friend ? friend.sprite.y - 10 : this.player.y + Math.sin(orbitAngle) * 74;
       const angle = Phaser.Math.Angle.Between(x, y, target.x, target.y);
       this.spawnProjectile({ x, y, angle, speed: 640, damage: 12 * this.state.stats.damage, pierce: 1, lifeMs: 1_200, color: index % 2 ? 0xffd66b : 0x6df5ff, radius: 5 });
     }
