@@ -25,7 +25,7 @@ export const RUN_MODES: readonly RunModeDefinition[] = [
     timelineScale: 3,
     spawnDensity: 3,
     xpGainScale: 1 / 3,
-    upgradeSteps: 3
+    upgradeSteps: 2
   },
   {
     id: 'focus',
@@ -36,7 +36,7 @@ export const RUN_MODES: readonly RunModeDefinition[] = [
     timelineScale: 1.5,
     spawnDensity: 1.5,
     xpGainScale: 2 / 3,
-    upgradeSteps: 3
+    upgradeSteps: 2
   }
 ] as const;
 

@@ -96,13 +96,13 @@ describe('waves, budgets, saves, and spatial lookup', () => {
       durationMs: 300_000,
       timelineScale: 3,
       spawnDensity: 3,
-      upgradeSteps: 3
+      upgradeSteps: 2
     });
     expect(getRunMode('focus')).toMatchObject({
       durationMs: 600_000,
       timelineScale: 1.5,
       spawnDensity: 1.5,
-      upgradeSteps: 3
+      upgradeSteps: 2
     });
   });
 
