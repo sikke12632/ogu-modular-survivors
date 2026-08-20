@@ -17,9 +17,19 @@ const WORLD_IMAGES = [
 ] as const;
 
 export class BootScene extends Phaser.Scene {
+  private failedFiles: Phaser.Loader.File[] = [];
+  private retriedOnce = false;
+
   constructor() { super('BootScene'); }
 
   preload(): void {
+    // 불안정한 네트워크(학교 와이파이)에서 그림이 한 장이라도 빠지면
+    // Phaser가 초록 격자(missing texture)를 그린다. 실패 파일을 모아
+    // create()에서 한 번 재시도한다.
+    this.failedFiles = [];
+    this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
+      this.failedFiles.push(file);
+    });
     for (const tone of ['blue', 'green', 'orange', 'grey'] as const) {
       this.load.image(`ui-button-${tone}`, `assets/school/ui/button-${tone}.png`);
       this.load.image(`ui-panel-${tone}`, `assets/school/ui/panel-${tone}.png`);
@@ -69,6 +79,22 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (this.failedFiles.length > 0 && !this.retriedOnce) {
+      this.retriedOnce = true;
+      const files = [...this.failedFiles];
+      this.failedFiles = [];
+      for (const file of files) {
+        const config = (file as unknown as { config?: object }).config;
+        if (file.type === 'spritesheet') {
+          this.load.spritesheet(file.key, file.src, config as Phaser.Types.Loader.FileTypes.ImageFrameConfig);
+        } else {
+          this.load.image(file.key, file.src);
+        }
+      }
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => this.create());
+      this.load.start();
+      return;
+    }
     this.createUtilityTextures();
     createStudentAnimations(this);
     createStudentAnimations(this, FRIEND_SPRITE_IDS);
