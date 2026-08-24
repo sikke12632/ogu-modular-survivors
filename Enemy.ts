@@ -1,0 +1,62 @@
+import Phaser from 'phaser';
+import type { EnemyDefinition } from '../data/enemies';
+import type { RandomFn } from '../core/math/random';
+
+export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
+  uid = 0;
+  definition?: EnemyDefinition;
+  hp = 1;
+  maxHp = 1;
+  attackCooldownMs = 0;
+  specialCooldownMs = 0;
+  radialCooldownMs = 0;
+  state: 'chase' | 'telegraph' | 'dash' | 'recover' = 'chase';
+  stateTimerMs = 0;
+  phase = 1;
+  slowUntil = 0;
+  dashX = 0;
+  dashY = 0;
+  spawnedAdds = 0;
+  visualPhase = 0;
+  // 타격 찌그러짐 연출의 복원 기준. 스폰 시 setDisplaySize 직후 기록된다.
+  // (현재 scale을 기준으로 삼으면 연타당할 때 찌그러짐이 누적되어
+  //  보스가 가로줄이 되는 버그가 생긴다.)
+  baseScaleX = 1;
+  baseScaleY = 1;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, texture = 'pixel') {
+    super(scene, x, y, texture);
+  }
+
+  activate(uid: number, definition: EnemyDefinition, hpScale: number, damageScale: number, random: RandomFn = Math.random): this {
+    this.enableBody(true, this.x, this.y, true, true);
+    this.uid = uid;
+    this.definition = { ...definition, damage: definition.damage * damageScale };
+    this.hp = definition.hp * hpScale;
+    this.maxHp = this.hp;
+    this.attackCooldownMs = 600 + random() * 700;
+    this.specialCooldownMs = 1_800 + random() * 1_200;
+    this.radialCooldownMs = 1_000 + random() * 700;
+    this.state = 'chase';
+    this.stateTimerMs = 0;
+    this.phase = 1;
+    this.slowUntil = 0;
+    this.spawnedAdds = 0;
+    this.visualPhase = uid * 0.73;
+    this.setTexture(`enemy-${definition.id}`)
+      .setActive(true)
+      .setVisible(true)
+      .setAlpha(1)
+      .setAngle(0)
+      .clearTint()
+      .setScale(1);
+    this.play({ key: `enemy-${definition.id}-walk`, startFrame: uid % 4 });
+    this.setDataEnabled();
+    return this;
+  }
+
+  retire(): void {
+    this.disableBody(true, true);
+    this.definition = undefined;
+  }
+}
