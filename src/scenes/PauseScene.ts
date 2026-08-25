@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { bgm } from '../audio/Bgm';
 import { sfx } from '../audio/ProceduralSfx';
 import { addKenneyButton, addKenneyPanel, type KenneyTone } from '../ui/KenneyUi';
 import { SCHOOL_FONT } from '../ui/SchoolArt';
@@ -27,6 +28,7 @@ export class PauseScene extends Phaser.Scene {
     this.button(640, 306, `소리 ${sfx.enabled ? '켜짐' : '꺼짐'}`, 'blue', (label) => {
       sfx.enabled = !sfx.enabled;
       localStorage.setItem('ogu-sound', sfx.enabled ? 'on' : 'off');
+      bgm.applyEnabled();
       label.setText(`소리 ${sfx.enabled ? '켜짐' : '꺼짐'}`);
     });
     this.button(640, 386, '저장하고 메인으로', 'blue', () => {

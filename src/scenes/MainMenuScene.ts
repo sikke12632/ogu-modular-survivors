@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_VERSION } from '../app/version';
+import { bgm } from '../audio/Bgm';
 import { sfx } from '../audio/ProceduralSfx';
 import { CHARACTERS, type CharacterId } from '../data/characters';
 import {
@@ -38,6 +39,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.profileText = undefined;
     this.cameras.main.setBackgroundColor('#78c7e3');
     this.drawBackdrop();
+    bgm.play(this, 'bgm-menu');
 
     addKenneyPanel(this, 356, 118, 650, 178, 'orange').setAlpha(0.97);
     this.add.text(64, 44, 'OGU SCHOOL DEFENSE', {
@@ -94,6 +96,7 @@ export class MainMenuScene extends Phaser.Scene {
       sfx.unlock();
       sfx.enabled = !sfx.enabled;
       localStorage.setItem('ogu-sound', sfx.enabled ? 'on' : 'off');
+      bgm.applyEnabled();
       this.showToast(sfx.enabled ? '소리를 켰습니다.' : '소리를 껐습니다.');
     });
 

@@ -72,6 +72,9 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`school-${key}`, `assets/school/world/${key}.png`);
     }
 
+    this.load.audio('bgm-menu', 'assets/school/music/menu.ogg');
+    this.load.audio('bgm-battle', 'assets/school/music/battle.ogg');
+
     this.load.image('vfx-burst', 'assets/kenney/effects/burst.png');
     this.load.image('vfx-glint', 'assets/kenney/effects/glint.png');
     this.load.image('vfx-critical', 'assets/kenney/effects/critical.png');

@@ -18,6 +18,11 @@ export class EnemySprite extends Phaser.Physics.Arcade.Sprite {
   dashY = 0;
   spawnedAdds = 0;
   visualPhase = 0;
+  // 타격 찌그러짐 연출의 복원 기준. 스폰 시 setDisplaySize 직후 기록된다.
+  // (현재 scale을 기준으로 삼으면 연타당할 때 찌그러짐이 누적되어
+  //  보스가 가로줄이 되는 버그가 생긴다.)
+  baseScaleX = 1;
+  baseScaleY = 1;
 
   constructor(scene: Phaser.Scene, x: number, y: number, texture = 'pixel') {
     super(scene, x, y, texture);

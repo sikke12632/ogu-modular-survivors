@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { bgm } from '../audio/Bgm';
 import { getCharacter } from '../data/characters';
 import { getRunMode } from '../data/runModes';
 import type { RunResult } from '../platform/LocalPlatformGateway';
@@ -20,6 +21,7 @@ export class ResultScene extends Phaser.Scene {
 
   create(): void {
     const victory = this.result.victory;
+    bgm.play(this, 'bgm-menu');
     this.cameras.main.setBackgroundColor('#78c7e3');
     this.add.tileSprite(640, 515, 1_280, 410, 'school-ground-grass')
       .setTileScale(2)

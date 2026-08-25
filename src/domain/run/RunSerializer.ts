@@ -167,7 +167,7 @@ function migrateRunState(value: unknown, sourceSchemaVersion: 1 | typeof SAVE_SC
   if (value.activeBoss !== undefined && !activeBoss) return undefined;
   const characterId = String(value.characterId) as RunState['characterId'];
   const modeId = isRunModeId(value.modeId) ? value.modeId : DEFAULT_RUN_MODE_ID;
-  const stats = calculateRunStats(characterId, passives, value.stats.hp);
+  const stats = calculateRunStats(characterId, passives, value.stats.hp, Math.floor(value.level));
 
   return {
     seed: value.seed,

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { runLifecycleService } from '../app/RunLifecycleService';
+import { bgm } from '../audio/Bgm';
 import { sfx } from '../audio/ProceduralSfx';
 import { eventBus, GameEvents, type HudSnapshot } from '../core/events/EventBus';
 import { SpatialHashGrid } from '../core/math/SpatialHashGrid';
@@ -23,7 +24,7 @@ import { applyUpgradeChoice, draftUpgrades, type UpgradeChoice } from '../domain
 import { applyExperience, xpRequiredForLevel } from '../domain/progression/Experience';
 import { type RunCheckpoint, type RunSnapshot } from '../domain/run/RunSerializer';
 import type { RunState } from '../domain/run/RunState';
-import { createBaseRunStats } from '../domain/run/RunStatsCalculator';
+import { createBaseRunStats, MYSTIC_LEVEL_DAMAGE_GROWTH } from '../domain/run/RunStatsCalculator';
 import { EnemySprite } from '../entities/Enemy';
 import { PickupSprite } from '../entities/Pickup';
 import { ProjectileSprite } from '../entities/Projectile';
@@ -164,6 +165,7 @@ export class GameScene extends Phaser.Scene implements CombatHost {
       this.devMode ? '#ffcf65' : '#7df8ff'
     );
     sfx.unlock();
+    bgm.play(this, 'bgm-battle');
   }
 
   update(_time: number, delta: number): void {
@@ -238,10 +240,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.state.ultimate = Math.min(this.state.ultimateMax, this.state.ultimate + result.amount * 0.11);
     playVisualEffect(this, 'hit', enemy.x, enemy.y, this.combatEffectColor(color));
     if (result.critical) playVisualEffect(this, 'critical', enemy.x, enemy.y, VFX_COLORS.lightning);
-    const scaleX = enemy.scaleX;
-    const scaleY = enemy.scaleY;
+    const scaleX = enemy.baseScaleX;
+    const scaleY = enemy.baseScaleY;
     enemy.setTintFill(0xffffff);
     this.tweens.killTweensOf(enemy);
+    enemy.setScale(scaleX, scaleY);
     this.tweens.add({
       targets: enemy,
       scaleX: scaleX * 1.12,
@@ -1038,6 +1041,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     if (!enemy) return undefined;
     enemy.activate(this.enemyUid++, definition, hpScale, damageScale, this.random);
     enemy.setPosition(x, y).setDisplaySize(definition.radius * 2.4, definition.radius * 2.4).setDepth(8);
+    enemy.baseScaleX = enemy.scaleX;
+    enemy.baseScaleY = enemy.scaleY;
     // Preserve the world-space hit radius from the former procedural texture sizes.
     const previousTextureSize = definition.boss ? 144 : definition.elite ? 80 : 56;
     const previousScale = definition.radius * 2.4 / previousTextureSize;
@@ -1135,6 +1140,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.state.xp = result.xp;
     if (result.levelsGained > 0) this.state.pendingLevelUps = 1;
     if (result.levelsGained > 0) playVisualEffect(this, 'level-up', this.player.x, this.player.y, VFX_COLORS.orange);
+    // 서준(대기만성): 레벨업마다 공격력 복리 성장. 복원 공식과 동일해야 한다.
+    if (result.levelsGained > 0 && this.characterId === 'mystic') {
+      this.state.stats.damage *= Math.pow(MYSTIC_LEVEL_DAMAGE_GROWTH, result.levelsGained);
+      this.showMessage(`두뇌 풀가동! 공격력 +${Math.round((Math.pow(MYSTIC_LEVEL_DAMAGE_GROWTH, result.levelsGained) - 1) * 100)}%`, '#b0e0ff', 1_200);
+    }
     pickup.retire();
     const missionResult = this.missionSystem.record('collect');
     if (missionResult === 'completed') this.resolveMission(true);

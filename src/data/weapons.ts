@@ -26,7 +26,7 @@ export interface WeaponDefinition {
 export const WEAPONS: readonly WeaponDefinition[] = [
   { id: 'straight_arrow', name: '노랑 연필', icon: '✏', description: '앞의 적을 빠르게', evolvedName: '샤프 연속쓰기', pattern: 'projectile', passive: 'haste', baseDamage: 12, cooldownMs: 620, range: 720, projectileSpeed: 620, color: 0x8dff94, maxLevel: 5 },
   { id: 'fan_blade', name: '색연필 묶음', icon: '🖍', description: '넓게 여러 적 공격', evolvedName: '무지개 색연필', pattern: 'fan', passive: 'power', baseDamage: 8, cooldownMs: 1_050, range: 620, projectileSpeed: 520, color: 0xffd56b, maxLevel: 5 },
-  { id: 'homing_orb', name: '쫓아가는 분필', icon: '○', description: '적을 따라가 공격', evolvedName: '무지개 분필', pattern: 'homing', passive: 'duration', baseDamage: 17, cooldownMs: 1_150, range: 800, projectileSpeed: 320, color: 0xc184ff, maxLevel: 5 },
+  { id: 'homing_orb', name: '쫓아가는 분필', icon: '○', description: '적을 따라가 공격', evolvedName: '무지개 분필', pattern: 'homing', passive: 'duration', baseDamage: 17, cooldownMs: 1_000, range: 800, projectileSpeed: 400, color: 0xc184ff, maxLevel: 5 },
   { id: 'pierce_spear', name: '긴 자', icon: '📏', description: '여러 적을 곧게 공격', evolvedName: '선생님 긴 자', pattern: 'pierce', passive: 'power', baseDamage: 24, cooldownMs: 1_420, range: 900, projectileSpeed: 760, color: 0x33f2ff, maxLevel: 5 },
   { id: 'boomerang', name: '종이비행기', icon: '✈', description: '날아갔다 돌아옴', evolvedName: '쌍둥이 비행기', pattern: 'boomerang', passive: 'duration', baseDamage: 14, cooldownMs: 1_550, range: 520, projectileSpeed: 420, color: 0xff7e97, maxLevel: 5 },
   { id: 'orbit_blade', name: '회전 지우개', icon: '▰', description: '주변을 돌며 방어', evolvedName: '지우개 방어막', pattern: 'orbit', passive: 'vitality', baseDamage: 10, cooldownMs: 360, range: 86, color: 0x42eaff, maxLevel: 5 },
