@@ -756,7 +756,8 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     else if (distance > 340) this.steerToward(enemy, this.player.x, this.player.y, definition.speed * slow);
     else enemy.setVelocity(0, 0);
     if (tryConsumeEnemyCooldown(enemy, 'attackCooldownMs', definition.elite ? 1_500 : definition.boss ? 1_200 : 2_400)) {
-      this.fireEnemyProjectile(enemy.x, enemy.y, this.player.x, this.player.y, definition.damage, definition.boss ? 210 : 150, definition.color);
+      // 펜촉 너프: 일반 개체는 탄속을 낮추고(150→120) 탄이 일찍 사라지게(4.5초→3초) 해 피할 수 있게 한다. 보스는 유지.
+      this.fireEnemyProjectile(enemy.x, enemy.y, this.player.x, this.player.y, definition.damage, definition.boss ? 210 : 120, definition.color, definition.boss ? 4_500 : 3_000);
     }
   }
 
@@ -1242,11 +1243,11 @@ export class GameScene extends Phaser.Scene implements CombatHost {
     this.triggerAssemble(`${character.ultimateName} · 오구 어셈블!`);
   }
 
-  private fireEnemyProjectile(x: number, y: number, targetX: number, targetY: number, damage: number, speed: number, color: number): void {
+  private fireEnemyProjectile(x: number, y: number, targetX: number, targetY: number, damage: number, speed: number, color: number, lifeMs = 4_500): void {
     const projectile = this.enemyProjectiles.get(x, y, 'enemy-projectile') as ProjectileSprite | null;
     if (!projectile) return;
     const angle = Phaser.Math.Angle.Between(x, y, targetX, targetY);
-    projectile.activate({ x, y, angle, speed, damage, pierce: 0, lifeMs: 4_500, color, radius: 8 }).setTexture('enemy-projectile').setDepth(9);
+    projectile.activate({ x, y, angle, speed, damage, pierce: 0, lifeMs, color, radius: 8 }).setTexture('enemy-projectile').setDepth(9);
   }
 
   private fireRadial(x: number, y: number, count: number, damage: number, speed: number): void {
